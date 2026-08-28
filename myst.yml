@@ -1,8 +1,8 @@
 version: 1
 project:
   id: 1a64f726-f4ed-4e1a-af20-7847897c4ef1
-  title: Quantitative Economics MyST Template
-  github: https://github.com/alanlujan91/qe_template
+  title: Econometric Society Journals MyST Template
+  github: https://github.com/alanlujan91/econsoc_template
   license: CC-BY-4.0
   open_access: true
   authors:
@@ -12,7 +12,10 @@ project:
   keywords:
     - template
     - latex
+    - econometric-society
+    - econometrica
     - quantitative-economics
+    - theoretical-economics
     - academic-publishing
   toc:
     - file: sample/article.md

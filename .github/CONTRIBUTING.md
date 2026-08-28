@@ -1,6 +1,6 @@
-# Contributing to QE MyST Template
+# Contributing to the Econometric Society Journals MyST Template
 
-Thank you for your interest in contributing to the Quantitative Economics MyST Template!
+Thank you for your interest in contributing to the Econometric Society Journals MyST Template!
 
 ## Development Setup
 
@@ -16,8 +16,8 @@ Thank you for your interest in contributing to the Quantitative Economics MyST T
 This repository uses three git submodules to track the official Econometric Society LaTeX templates:
 
 ```bash
-git clone --recurse-submodules https://github.com/alanlujan91/qe_template.git
-cd qe_template
+git clone --recurse-submodules https://github.com/alanlujan91/econsoc_template.git
+cd econsoc_template
 ```
 
 If you already cloned without submodules:

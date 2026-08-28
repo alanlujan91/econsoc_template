@@ -12,7 +12,7 @@ MyST Markdown template for Econometric Society journal submissions: Econometrica
 
 ![Template Thumbnail](thumbnail.png)
 
-- **Template**: [github.com/alanlujan91/qe_template](https://github.com/alanlujan91/qe_template)
+- **Template**: [github.com/alanlujan91/econsoc_template](https://github.com/alanlujan91/econsoc_template)
 - **Author**: Alan Lujan
 - **Based on**: the official Econometric Society LaTeX templates, tracked as submodules under `original/`
   - [Econometrica](https://github.com/vtex-soft/texsupport.econometricsociety-ecta) (`original/ecta`)
@@ -55,7 +55,7 @@ license: CC-BY-4.0
 open_access: true
 exports:
   - format: tex+pdf
-    template: https://github.com/alanlujan91/qe_template.git
+    template: https://github.com/alanlujan91/econsoc_template.git
     output: paper.pdf
 authors:
   - name:
@@ -104,11 +104,11 @@ This example sets no options, so it builds a neutral **preprint** in the default
 
 > **The `.git` suffix on the template URL is required.** MyST downloads a
 > template URL directly only when it ends in `.git` or `.zip`; anything else is
-> sent to a registry API, so a plain `https://github.com/alanlujan91/qe_template`
+> sent to a registry API, so a plain `https://github.com/alanlujan91/econsoc_template`
 > fails with `<!DOCTYPE "... is not valid JSON`. Use the `.git` form above, a
 > commit-pinned archive
-> (`https://github.com/alanlujan91/qe_template/archive/<sha>.zip`), or a local
-> path such as `../qe_template`.
+> (`https://github.com/alanlujan91/econsoc_template/archive/<sha>.zip`), or a local
+> path such as `../econsoc_template`.
 
 ### 3. Build PDF
 
@@ -250,7 +250,7 @@ When you submit, turn it off:
 ```yaml
 exports:
   - format: tex+pdf
-    template: https://github.com/alanlujan91/qe_template.git
+    template: https://github.com/alanlujan91/econsoc_template.git
     output: paper.pdf
     journal: ecta
     preprint: false   # renders "Submitted to Econometrica"
@@ -543,7 +543,7 @@ For any package **beyond** these groups (e.g. `tikz`, `pgfplots`), use the `extr
 ```yaml
 exports:
   - format: tex+pdf
-    template: https://github.com/alanlujan91/qe_template.git
+    template: https://github.com/alanlujan91/econsoc_template.git
     output: paper.pdf
     extra_packages: tikz,pgfplots
 ```
@@ -555,7 +555,7 @@ For supplementary material, use the same template with `supplement: true`:
 ```yaml
 exports:
   - format: tex+pdf
-    template: https://github.com/alanlujan91/qe_template.git
+    template: https://github.com/alanlujan91/econsoc_template.git
     output: supplement.pdf
     supplement: true
 ```

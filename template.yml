@@ -7,7 +7,7 @@ description: >-
   files, which are copyright UAB "VTeX" and licensed LPPL 1.3c
 version: 1.0.0
 license: CC-BY-4.0
-source: https://github.com/alanlujan91/qe_template
+source: https://github.com/alanlujan91/econsoc_template
 thumbnail: ./thumbnail.png
 authors:
   - name: Alan Lujan
