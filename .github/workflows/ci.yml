@@ -269,11 +269,24 @@ jobs:
           ```
           MD
           myst build --pdf --force > bt.log 2>&1 || true
-          log=$(find out -name '*.log' -path '*_logs*' | head -1)
-          if grep -qE 'Undefined control sequence' "$log"; then
-            grep -nE 'Undefined control sequence' "$log" | head -3
-            echo "FAIL: the template does not load booktabs for raw tables"; exit 1
-          fi
+          # Positive control first. A zero grep is evidence only once the file
+          # being counted over is known to exist: an empty $log makes grep fail
+          # on a missing path, which reads as "no errors found".
+          grep -q 'This is XeTeX' bt.log \
+            || { echo "FAIL: xelatex never ran; the checks below would be vacuous"; exit 1; }
+          # Every non-empty log, not `head -1`: the pick is filesystem-ordered
+          # and t.shell.log is 0 lines, so one run greps the real log and the
+          # next greps an empty file and calls it clean.
+          mapfile -t logs < <(find . -name '*.log' -path '*_logs*' -size +0c)
+          test "${#logs[@]}" -gt 0 \
+            || { echo "FAIL: no non-empty LaTeX log; the check would be vacuous"; exit 1; }
+          for log in "${logs[@]}"; do
+            echo "gating $log ($(wc -l < "$log") lines)"
+            if grep -qE 'Undefined control sequence' "$log"; then
+              grep -nE 'Undefined control sequence' "$log" | head -3
+              echo "FAIL: the template does not load booktabs for raw tables"; exit 1
+            fi
+          done
           pdftotext out/t.pdf - | grep -q 'Mean' \
             || { echo "FAIL: raw table did not render"; exit 1; }
           echo "raw booktabs table compiles and renders"
