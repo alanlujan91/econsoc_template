@@ -135,7 +135,45 @@ Configure via `exports` in frontmatter:
 | `linenumbers` | boolean | `false` | Adds line numbers to a non-draft build. `draft` turns them on regardless, so the option only has an observable effect when `draft` is false. It cannot switch them *off* inside a draft: the class has a `nolinenumbers` option that this template never emits. |
 | `extra_packages` | string | (none) | Comma-separated LaTeX packages to load, e.g. `mhchem,cancel` (see [LaTeX Packages](#latex-packages)) |
 
-The `open_access` frontmatter field automatically enables the econsocart `openaccess` class option.
+The `open_access` frontmatter field automatically enables the econsocart `openaccess` class option. It produces no visible change in a PDF you build: the license statement it controls sits inside the copyright block, which the journal adds during production. Measured in both preprint and non-preprint builds.
+
+`corresponding: true` on an author is likewise not rendered. econsocart marks the corresponding author through a `corref` key that only feeds the production-side open-access license line, so this template does not emit it.
+
+#### Special characters in frontmatter
+
+Write `&`, `%`, `#`, `_` in your title, keywords, JEL codes, author names and
+affiliations as ordinary characters. The template escapes them. Titles keep `_`, `~`
+and `^` unescaped so `$x_1$` still renders as math, which means a *literal*
+underscore in a title is the one case you must write as `\_` yourself.
+
+Author emails are not escaped, because `\ead` builds a `mailto:` link that `\_`
+would break. An address containing `&`, `%` or `#` fails the build loudly.
+
+#### Blockquote attributions
+
+Do not leave a blank `>` line before a dash-prefixed attribution:
+
+```markdown
+> We know what we are, but know not what we may be.
+> -- William Shakespeare, Hamlet
+```
+
+With a blank `>` line in between, MyST reads the last line as an attribution,
+wraps the quote in a `figure`, and emits `\caption*{...}`. econsocart ignores the
+star and typesets a phantom **"FIGURE 0."** into the paper, at exit 0 with nothing
+in the log.
+
+The dash count is irrelevant: `--` and `---` behave identically, and both are safe
+without the blank line. Measured across all six forms; an attribution with no
+leading dashes is also safe. CI asserts no `\caption*` reaches the emitted LaTeX.
+
+#### Citations in the abstract
+
+Do not cite inside the `abstract`. MyST excludes frontmatter parts from the
+rendered document, and bibliography harvesting walks that document, so the
+`\cite` reaches the `.tex` while its entry never reaches the `.bib`, leaving an
+undefined citation at exit 0. Same cause as the appendix restriction below. See
+[jupyter-book/mystmd#3032](https://github.com/jupyter-book/mystmd/issues/3032).
 
 #### Which mode for which stage
 
@@ -299,6 +337,27 @@ This template uses MyST native features wherever possible and falls back to raw 
 - See [MyST Typography Guide](https://mystmd.org/guide/typography#quotations)
 
 #### Theorem-like Environments
+
+> **`{prf:assumption}` and `{prf:algorithm}` are dropped from the PDF.** Released
+> `myst-to-tex` maps 11 of the 15 proof kinds; `algorithm`, `assumption`,
+> `criterion` and `property` match no case and are omitted along with their
+> `\label`, so cross-references to them render `??`. The build exits 0. See
+> [jupyter-book/mystmd#3030](https://github.com/jupyter-book/mystmd/issues/3030);
+> the fix is open as [#3031](https://github.com/jupyter-book/mystmd/pull/3031).
+>
+> Until it releases, write assumptions as `{prf:axiom}` and relabel the
+> cross-reference text:
+>
+> ```yaml
+> numbering:
+>   "proof:axiom":
+>     template: Assumption %s
+> ```
+>
+> The block survives and references read "Assumption 1", but the heading itself
+> still prints "AXIOM 1", because MyST injects `\newtheorem{axiom}{Axiom}`. For
+> algorithms there is no equivalent donor kind: write the steps as an ordinary
+> numbered list, which costs you the "Algorithm N" caption.
 
 MyST proof directives that produce correct LaTeX output:
 

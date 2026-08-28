@@ -25,6 +25,87 @@ section numbered "Corollary 1" with cross-references resolving to that string.
 emits it with a `\label` and no `\caption`, and a float takes its number from the
 caption, so under the float package the block renders with no label at all.
 
+## Vendoring is verbatim, by design
+
+`scripts/sync-vendored.sh --check` asserts the root class and `.bst` copies are
+byte-identical to the pinned submodules, and `selftest-sync-vendored.sh` mutates
+the inputs nine ways to prove the guard can still fail. That design admits no local
+patch: modifying `econsocart.cls` makes CI fail rather than tracking the change.
+
+If a patch ever becomes necessary, the guard has to change with it, to re-deriving
+the patched file from the pristine source and byte-comparing that. Do not weaken
+the check to accommodate a patch.
+
+## Rebuilding the sample exports
+
+`--force` does not regenerate `main.bib` inside `sample/exports/*_pdf_tex/`, and the
+cache is the project-root `_build/`, not `sample/_build/`. A `.bib` edit therefore
+does not reach the build, silently, at exit 0. Remove all three:
+
+```bash
+rm -rf _build sample/exports/*_pdf_tex sample/exports/*_pdf_logs
+myst build --pdf --force
+```
+
+Verify by grepping the emitted `main.bib` for the field you changed. A fresh mtime
+on that file is not evidence it was regenerated from source.
+
+## Name and affiliation precedence
+
+Given name: `nameParsed.given`, then `name.given`, then `given`, then nothing.
+Surname: `nameParsed.family`, then `name.surname`, then `surname`, then `family`,
+and only then the whole `name`.
+
+The whole name is the last resort of the SURNAME chain deliberately. Feeding it to
+the given-name chain as well rendered a one-part name ("Aristotle") as "Aristotle
+Aristotle", because both chains resolved independently. A mononym is a surname with
+no `\fnms`, so the `~` separator is emitted only when a given name exists.
+
+Affiliation display name: `institution`, then `name`, then empty.
+
+## Escaping LaTeX specials
+
+MyST escapes the content it renders itself. It does NOT escape frontmatter that
+reaches jtex as a raw string, and `\title{}` is fed from the substitution, not from
+the AST. An unescaped `&` was silently deleted from the PDF and an unescaped `%`
+opened a comment that swallowed the rest of the line, both while a PDF was still
+produced and copied into place.
+
+The discriminator is which side of that line a key falls on, and it is not inferable
+from the template. Measure it.
+
+Arrive ESCAPED, never escape again (doing so emits `50\\%`): `doc.abstract`, every
+`parts.*`, and body content.
+
+Arrive RAW, escaped here via the `esc()` macro (`\ & % # _ ~ ^`): author given,
+family and surname names, `affiliation.institution`, `affiliation.department`,
+`doc.keywords`, `doc.tags` (JEL codes).
+
+Arrive RAW, escaped via `escmath()` (`& % #` only): `doc.title`, `doc.short_title`.
+These deliberately leave `_ ~ ^` alone so `$x_1$` in a title still renders. The cost
+is that a literal underscore in a title is still unguarded.
+
+Arrive RAW and NOT escaped: `author.email`. `\ead` builds a `mailto:` link, and
+escaping `_` there breaks the URL. Addresses containing `% # &` will still break the
+build; that is a loud failure, not a silent one.
+
+Both macros open with `default('')`, and the order matters: `string` calls
+`.toString()` and throws on an absent key. Without it, a page with no `short_title`
+of its own raised `TypeError: Cannot read properties of undefined` at the
+`\runtitle` line, which aborts the export while `myst` still exits 0 and leaves the
+previous PDF in `exports/`. The only symptom is a stale artifact. Any new field
+routed through these macros inherits that requirement.
+
+`default('')` alone was not enough. A page inherits `short_title` from the project
+rather than receiving it, so `doc.short_title` is undefined there and the head
+rendered `\runtitle{}`: a blank running head on every odd page. No check looked at
+the running head at all, so a real paper carried the blank for months. The running head therefore falls back to `doc.title`. A
+running head that is too long is visibly wrong and gets fixed; an empty one is not.
+
+`.github/workflows/ci.yml` job `check-escaping` is the regression test, and it has
+been checked against the unescaped template: all six assertions fail on it. The same
+job asserts a page inheriting project frontmatter still renders.
+
 ## Dropped proof kinds (upstream, unfixed)
 
 Released `myst-to-tex` maps 11 of the 15 `PROOF_KINDS`. `algorithm`, `assumption`,
