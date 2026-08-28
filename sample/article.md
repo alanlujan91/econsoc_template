@@ -463,13 +463,13 @@ The dotted lines show the values of $u(x)$ for $x$ in the discrete support of $F
 % below the surrounding sections, and a demoted heading does not pick up the
 % class's appendix prefix, printing ".1" instead of "APPENDIX A:".
 
-```{raw} latex
+:::{raw:latex}
 \begin{appendix}
-```
+:::
 
 :::{include} appendix.md
 :::
 
-```{raw} latex
+:::{raw:latex}
 \end{appendix}
-```
+:::

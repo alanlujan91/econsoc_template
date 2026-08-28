@@ -337,7 +337,15 @@ jobs:
           if grep -nE 'Template render error|TypeError' build.log; then
             echo "FAIL: a template render aborted above"; exit 1
           fi
-          echo "no render aborts, bibtex ran"
+          # A structural macro in the FENCED raw form gets parsed by tex-to-myst,
+          # which cannot convert a bare \begin/\end pair: it logs this and renders
+          # the environment name as an orphan paragraph on the website. Use the
+          # colon form for those. macro_legend is expected and not matched here.
+          if grep -nE 'Unhandled TEX conversion for node of "macro_(begin|end)"' build.log; then
+            echo "FAIL: a \\begin/\\end pair is in a fenced raw block; use :::{raw:latex}"
+            exit 1
+          fi
+          echo "no render aborts, no unconvertible structural macros, bibtex ran"
 
       # The strongest gate here. Page counts and a title string do not notice
       # three proof blocks silently vanishing, which is what happened; only a

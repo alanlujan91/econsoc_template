@@ -385,20 +385,28 @@ See [MyST Proofs & Theorems](https://mystmd.org/guide/proofs-and-theorems) for d
 
 Open and close the appendix in the document **body**, and splice the file in with `include`:
 
-````markdown
+```markdown
 Last paragraph of the main text.
 
-```{raw} latex
+:::{raw:latex}
 \begin{appendix}
-```
+:::
 
 :::{include} appendix.md
 :::
 
-```{raw} latex
+:::{raw:latex}
 \end{appendix}
+:::
 ```
-````
+
+Use the **colon** form `:::{raw:latex}` here, not the fenced `` ```{raw} latex ``
+form. MyST parses the fenced form with tex-to-myst, which cannot convert a bare
+`\begin`/`\end` pair: it logged `Unhandled TEX conversion for node of "macro_begin"`
+on every build and rendered the environment *name* as an orphan paragraph on the
+website. The colon form is passed through untouched. The rule generalises: **fenced
+for content the website should show** (tables, figures, pseudocode), **colon for
+macros that only steer LaTeX** (environment delimiters, counter redefinitions).
 
 `appendix.md` is then ordinary MyST, with headings at `#` level:
 
@@ -427,7 +435,7 @@ The reason the branch was removed rather than kept is the underlying MyST behavi
 
 **Use the `{appendix}` environment, not a bare `\appendix`.** The bare switch applies globally and leaks into what follows, rendering the bibliography heading as `APPENDIX : REFERENCES`. `\begin{appendix}...\end{appendix}` scopes the change through LaTeX's own environment group, so the heading stays `REFERENCES`. This matches the upstream `econsocart` samples.
 
-**The raw blocks are not invisible in HTML.** MyST parses each block, strips the macro syntax, and renders the environment *name* as a paragraph, so the web page carries a stray paragraph reading `appendix` at each end of the appendix. Measured in the built site, not inferred. The PDF is correct; the cost is two orphan paragraphs on the website. Nothing in MyST currently suppresses them.
+**The colon form leaves the website clean.** The fenced form used to put a stray paragraph reading `appendix` at each end of the appendix, because MyST parsed the block and rendered the environment *name*. Measured in the built site before and after: elements whose text is exactly `appendix` went from 3 to 1, the remaining one being the appendix's own heading. Every `Unhandled TEX conversion for node of "macro_begin"` and `"macro_end"` disappeared with them, and all six PDFs stayed textually identical.
 
 Cross-reference appendices with raw LaTeX, not with a Markdown link. MyST's LaTeX renderer labels every section-type target "Section" and **discards the link text**, so `@appA`, `[Appendix A](#appA)`, `[Appendix {number}](#appA)` and `[Appendix %s](#appA)` all render "Section A". Write `` {raw:latex}`Appendix~\ref{appA}` `` instead, which renders "Appendix A" and nests correctly as "Appendix B.1". See [Cross-References](#cross-references) below.
 
