@@ -609,6 +609,7 @@ myst build your-paper.md --pdf
 - `qe.bst` - Quantitative Economics bibliography style
 - `te.bst` - Theoretical Economics bibliography style
 - `thumbnail.png` - Template preview
+- `docs/template-internals.md` - Maintainer notes on the class traps `template.tex` works around
 - `sample/` - Complete working examples (main article and supplement)
 - `scripts/sync-vendored.sh` - Re-vendors the files above from `original/*`
 - `original/{ecta,qe,te}/` - Pinned upstream templates (git submodules)

@@ -23,13 +23,9 @@
 
 % use option [draft] for initial submission
 %            [final] for the prepublication
-%% `final` is omitted when `linenumbers` is requested on its own. econsocart's
-%% \ProcessOptions is unstarred, so options execute in DECLARATION order, not the
-%% order written here: the class declares linenumbers (:127) before draft (:131)
-%% and final (:139), and both of those unconditionally overwrite the line-number
-%% flag. Emitting `final` alongside `linenumbers` therefore always wins and makes
-%% the option inert. `draft` still takes precedence when both are set, since draft
-%% turns line numbers on anyway.
+%% `final` is omitted when `linenumbers` is requested alone: class options execute
+%% in declaration order, and both draft and final overwrite the line-number flag.
+%% See docs/template-internals.md "Class options".
 \documentclass[[-options.journal-],nameyear[# if options.draft #],draft[# elif options.linenumbers #][# else #],final[# endif #][# if options.supplement #],supplement[# endif #][# if options.seceqn #],seceqn[# endif #][# if options.linenumbers #],linenumbers[# endif #][# if doc.open_access #],openaccess[# endif #]]{econsocart}
 %
 %\usepackage{}
@@ -67,14 +63,9 @@
 %% Please put your definitions here:        %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% Packages that MyST's HTML renderer supports but its LaTeX renderer does NOT
-%% auto-inject (via usePackages), and that econsocart does not already provide.
-%% They are loaded here so raw-LaTeX content that uses them compiles to PDF.
-%% Excluded on purpose: `soul` (clashes with econsocart's \caps), `csquotes`
-%% (its \enquote clashes with the qe.bst bibliography), and `algorithm2e`
-%% (clashes with `algorithm`). `cleveref` is loaded near the end of the preamble
-%% instead, since it must come after amsmath/amsthm/hyperref.
-%% All are declared in template.yml `packages:` so jtex knows they are loaded.
+%% Packages MyST's LaTeX renderer does not auto-inject and econsocart does not
+%% provide, loaded so raw-LaTeX content using them compiles. cleveref loads later
+%% (it must follow hyperref). Full list and exclusions: README "LaTeX packages".
 \usepackage{algpseudocode}
 \usepackage{subcaption}
 \usepackage{multirow}
@@ -88,30 +79,24 @@
 \usepackage{supertabular}
 \usepackage{epigraph}
 
-%% Author-supplied extra packages via the `extra_packages` export option, e.g.
+%% Author-supplied packages via the `extra_packages` export option, e.g.
 %%   extra_packages: tikz,pgfplots
-%% for anything beyond the set above. (Do not list soul: it clashes with
-%% econsocart's \caps.)
+%% See README "LaTeX packages" for the three that must not be listed.
 [# if options.extra_packages #]
 \usepackage{[-options.extra_packages-]}
 [# endif #]
 
-%% The imports placeholder below injects the packages MyST needs for native
-%% content (booktabs, longtable, graphicx, amsmath, amsthm, natbib, listings,
-%% siunitx, framed, xcolor, ...), EXCEPT those already declared in
-%% template.yml `packages:`. Do not add a package to `packages:` unless the
-%% template (or econsocart.cls) actually loads it; declaring an unloaded
-%% package suppresses MyST's injection and breaks the build.
+%% The imports placeholder injects the packages MyST needs for native content,
+%% except those declared in template.yml `packages:`. Declaring a package that
+%% nothing actually loads suppresses the injection and breaks the build.
 [-IMPORTS-]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Fix theorem numbering: MyST generates    %%
-%% section-based counters (Theorem 1.1) but %%
-%% QE requires global counters (Theorem 1). %%
-%% \counterwithout is a LaTeX2e kernel      %%
-%% command (2023-06-01 release or newer),   %%
-%% not from etoolbox.                        %%
+%% Theorem numbering                        %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% MyST generates section-based counters (Theorem 1.1); the journals number
+%% globally. \counterwithout is a LaTeX2e kernel command (2023-06-01 or newer),
+%% not etoolbox. See docs/template-internals.md "Theorem counters".
 \makeatletter
 \@ifundefined{c@theorem}{}{%
   \counterwithout{theorem}{section}}
@@ -125,11 +110,9 @@
   \counterwithout{axiom}{section}}
 \@ifundefined{c@proposition}{}{%
   \counterwithout{proposition}{section}}
-%% corollary is the ONE exception: MyST emits \newtheorem{corollary}{Corollary}[theorem],
-%% parenting it to theorem rather than section. Sweeping it with {section} would be a
-%% no-op on the reset while still stripping the \thetheorem. prefix from \thecorollary,
-%% leaving every corollary in a section numbered "Corollary 1" and every cross-reference
-%% to them resolving to that same string. Detach it from theorem instead.
+%% corollary is the exception: MyST parents it to theorem, not section, so detach
+%% it from theorem. Sweeping it with {section} renumbers every corollary to 1.
+%% See docs/template-internals.md "Theorem counters".
 \@ifundefined{c@corollary}{}{%
   \counterwithout{corollary}{theorem}}
 \@ifundefined{c@conjecture}{}{%
@@ -139,20 +122,9 @@
 
 \makeatother
 
-%% myst-to-tex 1.10.1 emits \begin{assumption} and \begin{algorithm} for the
-%% matching prf kinds, so both are used directly and the environments are
-%% defined here. Earlier versions dropped them, which is why this template used
-%% to carry them as the otherwise-unused `axiom` and `observation` kinds and
-%% rename the headings; that workaround is gone, since it made the HTML output
-%% say "Observation" where the PDF said "Algorithm".
-%%
-%% `algorithm` is deliberately a THEOREM here rather than the float from
-%% \usepackage{algorithm}, which is no longer loaded. MyST emits the environment
-%% with a \label and no \caption, and a float takes its number from the caption,
-%% so under the float package the block rendered with no "Algorithm N" label at
-%% all. Consequence to know: \begin{algorithm}...\caption{} float syntax in raw
-%% LaTeX no longer compiles. Write pseudocode with the `algorithmic` environment
-%% (algpseudocode, still loaded) inside a prf:algorithm block instead.
+%% Defined for the assumption and algorithm prf kinds. algorithm is a theorem, not
+%% the float package. Released myst-to-tex DROPS both from the .tex (upstream
+%% issue 3030). See README "Algorithms" and docs/template-internals.md.
 \theoremstyle{plain}
 \newtheorem{assumption}{Assumption}
 \newtheorem{algorithm}{Algorithm}
@@ -166,24 +138,14 @@
 %% article has no chapter breaks, so read those files with \input.
 \let\include\input
 
-%% Preprint mode strips the journal IDENTIFICATION while keeping the journal's
-%% own layout, class option and bibliography style. It is orthogonal to the
-%% journal choice on purpose: a Theoretical Economics preprint should be typeset
-%% as Theoretical Economics with the badge removed, not silently retyped in
-%% another journal's layout.
+%% Preprint strips the journal IDENTIFICATION while keeping the journal's own
+%% layout, class option and bibliography style. Orthogonal to `journal`.
+%% See README "Preprint mode".
 [# if options.preprint #]
 \makeatletter
-%% Empty the journal name in the running head via \form@runauthors, which the
-%% class calls BEFORE its own \markboth, so the head keeps its normal layout and
-%% draft line numbers still sit in the margin (do NOT rewrite \markboth here:
-%% that drops the \hfill spacing and pushes the line-number box onto the text).
-%%
-%% \copyright@text keeps its \hfill for the same reason, and this one is not
-%% hypothetical: defining it empty removed the glue that the head box needs, and
-%% under `draft` the line-number boxes then printed ON TOP of the first-page
-%% footnote block (author emails and the acknowledgement). Upstream's own draft
-%% output has no such collision, so it was ours. Suppress the text, keep the
-%% glue.
+%% Empty the journal name via \form@runauthors, never by rewriting \markboth, and
+%% keep the \hfill in \copyright@text. Dropping either collides the draft
+%% line-number boxes with the text. See docs/template-internals.md.
 \def\form@runauthors{\gdef\@runjournal{}}
 \def\copyright@text{\hfill}
 \makeatother
@@ -207,11 +169,9 @@
 %%% initials in fnms (if any) with spaces
 %
 [# for author in doc.authors #]
-%% The optional-argument bracket group is emitted ONLY when this author actually
-%% has affiliations. A bare \author[]{...} makes econsocart look up an address
-%% keyed on the empty string, which raises "Missing \endcsname inserted" and
-%% "Class econsocart Error: there is no address with number", then drops the
-%% affiliation line while still producing a PDF and exiting 0.
+%% The bracket group is emitted only for authors that have affiliations. A bare
+%% \author[]{...} drops the affiliation line and still exits 0.
+%% See docs/template-internals.md "Authors and addresses".
 \author[# if author.affiliations #][
 [#- for affiliation in author.affiliations -#]
 [#- if affiliation is string -#]
@@ -254,14 +214,9 @@
 \orgname{[-affiliation.institution|default(affiliation.name)|default('')|trim-]}}
 
 [# endfor #]
-%% Fallback address for authors with no affiliations. econsocart defines
-%% \author as \@ifnextchar[{\author@fmt}{\author@fmt[default]}, so omitting the
-%% optional bracket does not skip the lookup: it substitutes the literal label
-%% `default`, which the class then fails to resolve ("there is no address with
-%% label: default"). Declaring an empty address under that label satisfies the
-%% lookup. Emitted unconditionally because it is inert when unused: a document
-%% where every author is affiliated produces byte-identical PDF text with and
-%% without it, so this costs nothing rather than needing a per-document guard.
+%% Fallback address for authors with no affiliations: the class substitutes the
+%% literal label `default` rather than skipping the lookup. Inert when unused.
+%% See docs/template-internals.md "Authors and addresses".
 \address[default]{}
 
 \end{aug}
@@ -274,10 +229,9 @@
 \end{funding}
 [# endif #]
 %
-%% Suppressed in preprint mode. The placeholder asserts that a co-editor handled
-%% the manuscript, which is exactly the journal-submission signal `preprint` exists
-%% to strip: a working paper posted publicly would otherwise read "Co-editor [Name
-%% Surname; will be inserted later] handled this manuscript."
+%% Suppressed in preprint mode: the class placeholder asserts a co-editor handled
+%% the manuscript, which is the submission signal `preprint` exists to strip.
+%% See README "Template Options".
 [# if not options.preprint #]
 \coeditor{\fnm{[Name} \snm{Surname}; will be inserted later]}
 [# endif #]
@@ -298,15 +252,9 @@
 [# endif #]
 \end{keyword}
 
-%% Omit the block entirely when there are no codes, rather than emitting an
-%% empty one: the class prints its "JEL CLASSIFICATION" label regardless of
-%% content, so an empty block renders as a stray label with dangling punctuation.
-%% Econometrica does not use JEL codes: upstream ecta_sample.tex carries no JEL
-%% block, while qe_sample.tex and te_sample.tex each carry one. So the block is
-%% suppressed under `journal: ecta` even when the document supplies `tags`, which
-%% lets one source retarget across all three journals without hand-editing.
-%% The suppression is deliberately NOT silent: the trace below survives into the
-%% .tex so a reader can see codes were withheld rather than lost.
+%% Omit the block when there are no codes: the class prints its "JEL
+%% CLASSIFICATION" label regardless of content. Also suppressed under ecta, with
+%% a trace left in the .tex. See docs/template-internals.md "JEL codes".
 [# if doc.tags #]
 [# if options.journal == "ecta" #]
 %% JEL codes present in the document frontmatter were omitted here: Econometrica
@@ -332,54 +280,16 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Appendix                                 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% There is deliberately no `parts.appendix` branch here. BECAUSE there is none,
-%% a document that still declares `parts: appendix:` loses its appendix ENTIRELY
-%% and silently: MyST logs "Built <doc>#parts.appendix", then the content reaches
-%% neither this .tex nor the PDF, with no warning and exit 0. Do not look for a
-%% missing bibliography entry as the symptom; there is none.
-%% The branch was removed rather than kept because of the underlying MyST
-%% behavior: harvesting walks the RENDERED document and frontmatter parts are
-%% excluded from it ("Content within these parts is not rendered in the
-%% document", per docs/document-parts), so a reference cited only in a part
-%% reached this .tex while its entry never reached the .bib, leaving an undefined
-%% citation. A branch producing wrong bibliographies was not better than an
-%% obvious empty space.
-%% Open and close the appendix in the document body instead, which keeps the
-%% content in the main AST so its citations are harvested:
-%%     ```{raw} latex
-%%     \begin{appendix}
-%%     ```
-%%     :::{include} appendix.md
-%%     :::
-%%     ```{raw} latex
-%%     \end{appendix}
-%%     ```
-%% Headings in the included file must be `#` level. Included content sits one
-%% level below the surrounding sections, and a demoted heading does not pick up
-%% the class's appendix prefix, printing ".1" instead of "APPENDIX A:".
-%% Known cost on the HTML side: MyST parses each raw block and renders the
-%% environment NAME as a paragraph, so the website shows a stray paragraph
-%% reading "appendix" at each end. The PDF is unaffected.
-%% See README "Appendices". Nothing currently checks this automatically: verify
-%% by grepping the emitted main.bib for every key cited in the emitted .tex.
+%% No `parts.appendix` branch: a document declaring it loses its appendix
+%% silently, and references cited only there never reach the .bib. Open the
+%% appendix in the document body instead. See README "Appendices".
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Bibliography:  BibTeX Version          %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Each Econometric Society journal ships its own BibTeX style for ARTICLES:
-%% Econometrica uses econsoc, Quantitative Economics uses qe, Theoretical
-%% Economics uses te. `preprint` is orthogonal and does NOT change the style: a
-%% Theoretical Economics preprint keeps the te style, an Econometrica
-%% preprint keeps econsoc. All three bst files are vendored and listed in
-%% template.yml.
-%%
-%% Supplements deliberately use the same style. Upstream's qe_supp_template.tex
-%% and te_supp_template.tex still say ecta-fullname, but that is a stale
-%% reference, not a target to match: ecta-fullname.bst only ever existed in the
-%% Econometrica repository, which DELETED it on 2026-03-06 (commit 959c321) and
-%% added econsoc.bst in the same commit. The qe and te supplement templates were
-%% last touched 2025-03-03, a year before that removal, and neither repository
-%% ever shipped the file. Following them would mean shipping a retired style.
+%% One style per journal (ecta/qe/te), all three vendored and listed in
+%% template.yml. `preprint` does not change it, and supplements match the article
+%% despite upstream naming ecta-fullname. docs/template-internals.md.
 [# if doc.bibliography #]
 \bibliographystyle{[# if options.journal == "ecta" #]econsoc[# elif options.journal == "te" #]te[# else #]qe[# endif #]} % Style BST file
 \bibliography{[-doc.bibliography-]}  % Bibliography file (usually '*.bib')
