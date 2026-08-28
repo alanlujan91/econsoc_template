@@ -185,3 +185,48 @@ One style per journal: `ecta` uses `econsoc`, `qe` uses `qe`, `te` uses `te`.
 Upstream's `qe_supp_template.tex` and `te_supp_template.tex` name `ecta-fullname`,
 which is stale. That file only ever existed in the Econometrica repository, which
 deleted it on 2026-03-06 (commit 959c321) and added `econsoc.bst` in the same commit.
+
+## What build-samples.sh guards, and why each check exists
+
+Each of these was a real shipped defect. They live here rather than as comment
+blocks in the script, per the three-line cap.
+
+**A missing dependency must fail, not skip.** The bibliography check is the only
+thing that catches a dead bibliography, and it guards `ecta` and `te`, which
+nothing else compiles. Without `poppler-utils` it would quietly do nothing, and a
+gate that degrades to nothing is indistinguishable from a gate that passed.
+
+**Exports are cleared first.** `myst` does not overwrite an export file that
+already exists, so a stale artifact survives a rebuild and satisfies every
+assertion below it. That is how the vendored copies once rotted a full class
+release behind.
+
+**The log regex matches the condition, never the decoration.** MyST runs xelatex
+through latexmk with `-file-line-error`, which rewrites `! message` into
+`file:line: message`, so a pattern anchored on `^! ` matches nothing. Class- and
+package-branded errors read `Class econsocart Error:` rather than `LaTeX Error:`.
+An earlier `^! ` version passed a build whose log held
+`./article_ecta.tex:460: Undefined control sequence.`
+
+**Cited keys are compared against the emitted `.bib` as sets.** MyST harvests the
+bibliography from the *rendered* document, so a key reachable only from unrendered
+content lands in the `.tex` and never in the `.bib`. BibTeX leaves it undefined,
+natbib logs a warning rather than an error, and the PDF ships a visible `?`.
+Counting entries cannot catch this, because the other citations still resolve and
+keep any threshold satisfied.
+
+**`|| true` on the leading greps is load-bearing.** `grep` exits 1 when it matches
+nothing, which is legitimate here (a `.tex` with no citations, an empty `.bib`).
+Under `set -euo pipefail` that exit propagates through the pipe and kills the
+script at the assignment, with no message and no further exports checked.
+
+**Numbered section references need `headings: true` in the document's own
+frontmatter.** `heading_1`/`2`/`3` is ignored there. Getting it wrong fails
+silently: headings stay numbered so the document looks right, while every
+reference degrades to the heading title.
+
+**An unresolved reference prints a literal `??`.** No LaTeX event occurs, so no
+log gate can see it. A numbered `[Sec %s](#label)` link does this in every
+single-article export ([mystmd#3035](https://github.com/jupyter-book/mystmd/pull/3035)),
+and a `\ref` to a dropped `prf:algorithm` block does it too, so the artifact check
+is the only one that covers both.

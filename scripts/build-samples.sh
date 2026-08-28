@@ -42,19 +42,17 @@ cd "$(dirname "$0")/.."
 SOURCES=(article.md supplement.md)
 
 # The bibliography check is the only thing that catches a dead bibliography, and
-# it guards ecta and te, which nothing else compiles. A machine without
-# poppler-utils must therefore fail rather than quietly skip it: a gate that
-# degrades to nothing is indistinguishable from a gate that passed.
+# it guards ecta and te, which nothing else compiles. Missing poppler-utils must
+# fail, never skip. See docs/template-internals.md.
 command -v pdftotext >/dev/null 2>&1 ||
     die "pdftotext not found (install poppler-utils); the bibliography check cannot run without it"
 
 # Every export declared across the sources: this is what the build owes us.
 expected=$(grep -hcE '^ *output: exports/.*\.pdf$' sample/"${SOURCES[0]}" sample/"${SOURCES[1]}" | paste -sd+ | bc)
 
-# Clear first, so nothing below can validate a leftover from an earlier run.
-# myst does not overwrite an export file that already exists, which is what let
-# the vendored copies rot a full class release behind, so a stale export here
-# would survive a rebuild and pass every assertion.
+# Clear first: myst does not overwrite an export file that already exists, so a
+# stale one survives a rebuild and satisfies every assertion below.
+# See docs/template-internals.md.
 rm -rf sample/exports
 
 echo "Building ${SOURCES[*]} ($expected exports expected)"
@@ -78,17 +76,9 @@ if [ "${#logs[@]}" -eq 0 ]; then
     die "no LaTeX logs found under sample/exports/, so the log check would cover nothing"
 fi
 
-# Read the logs, not the exit code.
-#
-# Match the CONDITION, never the decoration. An earlier version of this pattern
-# anchored on '^! ' and silently passed a build whose log held
-# "./article_ecta.tex:460: Undefined control sequence." MyST runs xelatex through
-# latexmk with -file-line-error, which REWRITES bare TeX-kernel errors from
-# "! message" to "file:line: message", so '^! ' matches nothing. Note also that
-# class- and package-branded errors read "Class econsocart Error:", not
-# "LaTeX Error:", so keying on the latter alone misses those too. That gap is the
-# plausible mechanism behind a missing package dropping every table from the PDF
-# while this script reported all logs clean.
+# Read the logs, not the exit code, and match the CONDITION not the decoration:
+# latexmk's -file-line-error rewrites "! msg" into "file:line: msg", so a '^! '
+# anchor matches nothing. See docs/template-internals.md.
 latex_error_re='^! |[A-Za-z]+ Error:|Undefined control sequence|Missing \$ inserted|Runaway argument|I could(n.t| not) open style file|Emergency stop|^\./[^:]+:[0-9]+: '
 for log in "${logs[@]}"; do
     if grep -qE "$latex_error_re" "$log"; then
@@ -99,14 +89,8 @@ for log in "${logs[@]}"; do
 done
 
 # Every key cited in the emitted .tex must exist in that export's emitted .bib.
-#
-# MyST harvests the bibliography from the RENDERED document, so a key reachable
-# only from content MyST does not render (a frontmatter part, for instance) is
-# written into the .tex and omitted from the .bib. BibTeX then leaves it
-# undefined, natbib logs a warning rather than an error, and the PDF ships with a
-# visible "?" where the citation should be. Counting entries cannot catch this:
-# the other citations still resolve and keep any threshold satisfied. Compare the
-# two sets directly.
+# MyST harvests from the RENDERED document, so counting entries cannot catch a
+# key that never reached the .bib. See docs/template-internals.md.
 for tex in "${texs[@]}"; do
     bib="$(dirname "$tex")/main.bib"
 
@@ -119,11 +103,9 @@ for tex in "${texs[@]}"; do
         continue
     fi
 
-    # `|| true` on each leading grep is load-bearing. grep exits 1 when it matches
-    # nothing, which is legitimate here (a .tex with no citations, an empty .bib).
-    # Under `set -euo pipefail` that exit propagates through the pipe and kills the
-    # whole script at the assignment, with no message and no further exports
-    # checked, so a benign zero-match would read as a bare shell crash.
+    # `|| true` is load-bearing: grep exits 1 on no match, legitimate here, and
+    # under `set -euo pipefail` that would kill the script at the assignment with
+    # no message. See docs/template-internals.md.
     cited=$({ grep -oE '\\cite[a-zA-Z]*\{[^}]*\}' "$tex" || true; } \
             | sed 's/.*{//; s/}//' | tr ',' '\n' | tr -d ' ' | { grep -v '^$' || true; } | sort -u)
     present=$({ grep -oE '^@[a-zA-Z]+\{[^,]+' "$bib" || true; } | sed 's/.*{//' | sort -u)
@@ -153,13 +135,9 @@ for tex in "${texs[@]}"; do
         continue
     fi
 
-    # Numbered section references depend on the `numbering` keys, and getting
-    # them wrong fails silently: the headings stay numbered, so the document
-    # looks right, while every reference degrades to the heading TITLE
-    # ("the Introduction should be Introduction"). The sample references s1, so
-    # a real numbered ref must appear. Note heading_1/2/3 is ignored in document
-    # frontmatter - only `headings: true` works there - which is exactly the
-    # mistake this catches.
+    # Numbered refs need `headings: true` in the document's own frontmatter, where
+    # heading_1/2/3 is ignored; wrong keys degrade every ref to the heading TITLE
+    # while headings stay numbered. See docs/template-internals.md.
     if ! grep -q 'Section~\\ref{s1}' "$tex"; then
         echo "ERROR: $tex has no numbered reference to s1." >&2
         echo "       Section refs have degraded to heading titles. Check the numbering" >&2
