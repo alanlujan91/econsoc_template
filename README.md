@@ -301,6 +301,19 @@ Draft mode adds line numbers in both margins, switches to the proof paper size a
 
 ## MyST Implementation Details
 
+> **Every upstream limitation below was measured on mystmd 1.10.1.** Several
+> describe bugs with open pull requests: [#3031](https://github.com/jupyter-book/mystmd/pull/3031)
+> (dropped proof kinds), [#3033](https://github.com/jupyter-book/mystmd/pull/3033)
+> (citations in frontmatter parts), [#3035](https://github.com/jupyter-book/mystmd/pull/3035)
+> (numbered cross-references).
+>
+> Once those are released, the entries describing them do not become *wrong*, they
+> become *unnecessary*, and nothing in CI will ever say so: re-measuring a fixed
+> bug returns a clean result that looks like a passing test. So on any mystmd
+> version bump, re-run the probe for each entry and **delete** the ones whose bug
+> no longer reproduces. Re-verifying without deleting leaves users working around
+> a bug that was fixed months ago.
+
 ### Approach
 
 This template uses MyST native features wherever possible and falls back to raw LaTeX for complex tables and algorithms that exceed MyST's native capabilities.
