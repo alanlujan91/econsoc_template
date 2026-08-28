@@ -259,6 +259,10 @@ This is the body of the proof of @th2.
 
 ## Assumptions and algorithms
 
+Released `myst-to-tex` omits `prf:assumption` and `prf:algorithm` from the LaTeX
+export, so the three blocks in this section render on the website but are absent
+from this PDF. See jupyter-book/mystmd#3030; the fix is open as #3031.
+
 :::{prf:assumption}
 :label: as1
 Assumptions use `{prf:assumption}` and carry their own counter.

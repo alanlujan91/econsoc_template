@@ -34,10 +34,15 @@ along with their `\label`, so cross-references to them render `??`. The build sa
 
 Upstream [issue 3030](https://github.com/jupyter-book/mystmd/issues/3030) and
 [PR 3031](https://github.com/jupyter-book/mystmd/pull/3031), open since 2026-08-19.
-Until that merges, the committed sample PDFs cannot be reproduced from a released
-mystmd: `sample/article.md` uses `prf:assumption` and `prf:algorithm`, and a build
-here drops all three blocks. The `\newtheorem` definitions in `template.tex` are
-correct and take effect as soon as the writer emits the environments.
+`sample/exports/` is built with stock mystmd, so the article PDFs omit the three
+blocks `sample/article.md` declares, and that section says so in its own prose.
+Committed artifacts are always built from a release: anything produced by a patched
+toolchain is transient, since no one else can reproduce it.
+
+The `\newtheorem{assumption}` and `\newtheorem{algorithm}` definitions in
+`template.tex` are correct and take effect as soon as the writer emits the
+environments. Once #3031 is released, rebuild `sample/exports/` and drop the note from
+`sample/article.md`.
 
 ## Packages
 
