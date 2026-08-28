@@ -355,9 +355,13 @@ This template uses MyST native features wherever possible and falls back to raw 
 > ```
 >
 > The block survives and references read "Assumption 1", but the heading itself
-> still prints "AXIOM 1", because MyST injects `\newtheorem{axiom}{Axiom}`. For
-> algorithms there is no equivalent donor kind: write the steps as an ordinary
-> numbered list, which costs you the "Algorithm N" caption.
+> still prints "AXIOM 1", because MyST injects `\newtheorem{axiom}{Axiom}`.
+>
+> Algorithms have the same workaround with `{prf:observation}` and
+> `"proof:observation": {template: Algorithm %s}`. Measured: the block survives,
+> the reference renders "Algorithm 1", and the heading prints "OBSERVATION 1" for
+> the same reason. Pick whichever mismatch you would rather explain, or write the
+> steps as an ordinary numbered list and lose the caption entirely.
 
 MyST proof directives that produce correct LaTeX output:
 
