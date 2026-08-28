@@ -120,13 +120,31 @@ jobs:
         shell: bash
         run: |
           set -eo pipefail
-          tex=$(find sample -name '*.tex' -path '*_texcheck*' | head -1)
-          test -n "$tex" || { echo "no rendered .tex found"; exit 1; }
-          for env in theorem proposition lemma corollary definition remark; do
-            grep -q "\\\\begin{$env}" "$tex" \
-              || { echo "FAIL: \\begin{$env} missing from $tex"; exit 1; }
+          # Every emitted file, not `head -1`: the pick is filesystem-ordered, so
+          # one run checks the article and the next the supplement.
+          found=0
+          for tex in $(find sample -name '*.tex' -path '*_texcheck*' | sort); do
+            found=1
+            # Exactly the kinds the samples declare AND myst-to-tex maps. They
+            # use no corollary; asserting one asserts a fiction.
+            for env in theorem proposition lemma definition remark axiom example; do
+              grep -q "\\\\begin{$env}" "$tex" \
+                || { echo "FAIL: \\begin{$env} missing from $tex"; exit 1; }
+            done
+            # assumption and algorithm are DROPPED by released myst-to-tex, so
+            # the samples declare them and the .tex must not contain them. When
+            # jupyter-book/mystmd#3031 releases this flips and CI goes red on
+            # purpose: rebuild sample/exports and drop the note in article.md.
+            for env in assumption algorithm; do
+              if grep -q "\\\\begin{$env}" "$tex"; then
+                echo "$env now reaches the LaTeX: mystmd#3031 has landed."
+                echo "Rebuild sample/exports/ and drop the note in sample/article.md (issue #1)."
+                exit 1
+              fi
+            done
           done
-          echo "all declared proof kinds present"
+          test "$found" = 1 || { echo "no rendered .tex found"; exit 1; }
+          echo "declared proof kinds present in every export; dropped kinds absent"
 
       # A `---` attribution line in a blockquote makes MyST wrap it in a figure
       # with \caption*. econsocart ignores the star and typesets "FIGURE 0." into
