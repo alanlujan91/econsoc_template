@@ -589,9 +589,11 @@ environments in a `.md` file, which is what this table describes.
 
 Three groups of packages are available in every build:
 
-1. **Auto-injected by MyST** when its own content needs them (never declared): `booktabs, pdflscape, longtable, amsmath, amsthm, imakeidx, listings, minted, ulem, framed, graphicx, natbib, siunitx, glossaries, xcolor`.
+1. **Auto-injected by MyST** when its own content needs them (never declared): `pdflscape, longtable, amsmath, amsthm, imakeidx, listings, minted, ulem, framed, graphicx, natbib, siunitx, glossaries, xcolor`.
 2. **Provided by the class and template:** `amssymb, bm, etoolbox, fontenc, textcomp, times, url` (class) and `hyperref` (template). These are declared in `packages:`, so MyST does not re-inject them.
-3. **Loaded by the template** (packages MyST recognizes but does not auto-inject, so raw-LaTeX content that uses them compiles): `algpseudocode, subcaption, multirow, tabularx, wrapfig, threeparttable, adjustbox, changepage, mhchem, cancel, supertabular, epigraph, cleveref`. Note that `algorithm` is **not** among them, by design: see [Algorithms](#algorithms).
+3. **Loaded by the template** (packages MyST recognizes but does not auto-inject, so raw-LaTeX content that uses them compiles): `booktabs, array, algpseudocode, subcaption, multirow, tabularx, wrapfig, threeparttable, adjustbox, changepage, mhchem, cancel, supertabular, epigraph, cleveref`. Note that `algorithm` is **not** among them, by design: see [Algorithms](#algorithms).
+
+`booktabs` sits in group 3 rather than group 1 because MyST injects it only for tables **it** emits. A document whose tables are raw LaTeX never triggers that, so `\toprule` was an undefined control sequence and the PDF rendered the table with every rule missing, at exit 0. Loading it unconditionally covers both cases. `array` is there for `>{...}` column specifications, which `tabularx` happens to pull in today; the explicit load removes the dependence on that. Note that mystmd's [supported macros](https://mystmd.org/guide/writing-in-latex) do not include the booktabs rules, so they pass through to the PDF but carry no meaning on the website.
 
 Because group 3 is loaded unconditionally, **your TeX installation must contain these packages**. A full TeX Live has them; on a minimal install add them with `tlmgr install <name>`.
 

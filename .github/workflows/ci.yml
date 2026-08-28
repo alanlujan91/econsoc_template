@@ -219,15 +219,64 @@ jobs:
         run: |
           set -eo pipefail
           missing=""
-          for p in adjustbox algpseudocode amssymb bm cancel changepage cleveref \
-                   epigraph etoolbox hyperref mhchem multirow subcaption \
-                   supertabular tabularx threeparttable wrapfig natbib caption; do
+          for p in adjustbox algpseudocode amssymb array booktabs bm cancel \
+                   changepage cleveref epigraph etoolbox hyperref mhchem multirow \
+                   subcaption supertabular tabularx threeparttable wrapfig \
+                   natbib caption; do
             kpsewhich "$p.sty" >/dev/null || missing="$missing $p"
           done
           [ -z "$missing" ] || { echo "FAIL: missing .sty:$missing"; exit 1; }
           command -v xelatex >/dev/null || { echo "FAIL: xelatex not installed"; exit 1; }
           command -v xdvipdfmx >/dev/null || { echo "FAIL: xdvipdfmx not installed"; exit 1; }
           echo "all declared packages resolve"
+
+      # kpsewhich proves the package is INSTALLED, not that the template loads
+      # it. MyST injects booktabs only for tables it emits, so a raw-LaTeX table
+      # compiled with \toprule undefined and shipped with no rules at exit 0.
+      - name: Assert a raw booktabs table compiles clean
+        run: |
+          set -eo pipefail
+          mkdir -p _bt && cd _bt
+          cat > myst.yml <<'YML'
+          version: 1
+          project:
+            authors: [{name: Ada Test, email: a@e.edu, affiliations: [u]}]
+            affiliations: [{id: u, institution: Test University}]
+            exports:
+              - id: t
+                format: tex+pdf
+                template: ../
+                output: out/t.pdf
+                articles: [{file: main.md}]
+          YML
+          cat > main.md <<'MD'
+          ---
+          title: Booktabs Probe
+          short_title: Probe
+          ---
+
+          ```{raw} latex
+          \begin{table}
+          \centering
+          \begin{tabular}{lrr}
+          \toprule
+          Model & Mean & SD \\
+          \midrule
+          A & 1.00 & 0.10 \\
+          \bottomrule
+          \end{tabular}
+          \end{table}
+          ```
+          MD
+          myst build --pdf --force > bt.log 2>&1 || true
+          log=$(find out -name '*.log' -path '*_logs*' | head -1)
+          if grep -qE 'Undefined control sequence' "$log"; then
+            grep -nE 'Undefined control sequence' "$log" | head -3
+            echo "FAIL: the template does not load booktabs for raw tables"; exit 1
+          fi
+          pdftotext out/t.pdf - | grep -q 'Mean' \
+            || { echo "FAIL: raw table did not render"; exit 1; }
+          echo "raw booktabs table compiles and renders"
 
       # scripts/build-samples.sh is the gate. It already clears exports so no
       # stale artifact can satisfy an assertion, asserts the export count, greps

@@ -66,6 +66,11 @@
 %% Packages MyST's LaTeX renderer does not auto-inject and econsocart does not
 %% provide, loaded so raw-LaTeX content using them compiles. cleveref loads later
 %% (it must follow hyperref). Full list and exclusions: README "LaTeX packages".
+%% booktabs and array are loaded UNCONDITIONALLY: MyST injects booktabs only for
+%% tables it emits itself, so a raw-LaTeX table's \toprule was an undefined
+%% control sequence and the PDF rendered the table with every rule missing.
+\usepackage{booktabs}
+\usepackage{array}
 \usepackage{algpseudocode}
 \usepackage{subcaption}
 \usepackage{multirow}

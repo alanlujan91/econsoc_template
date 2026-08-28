@@ -129,6 +129,8 @@ packages:
   - adjustbox
   - algpseudocode
   - amssymb
+  - array
+  - booktabs
   - bm
   - cancel
   - changepage
