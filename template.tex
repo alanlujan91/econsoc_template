@@ -157,8 +157,16 @@
 
 \begin{frontmatter}
 
-\title{[-doc.title-]}
-\runtitle{[-doc.short_title-]}
+%% `default('')` precedes `string`, which calls .toString() and THROWS on an
+%% absent key. A page inheriting short_title from the project has none of its own,
+%% so the export aborted while myst still exited 0 and kept the stale PDF.
+[# macro esc(s) #][-s|default('')|string|replace('\\','\\textbackslash{}')|replace('&','\\&')|replace('%','\\%')|replace('#','\\#')|replace('_','\\_')|replace('~','\\textasciitilde{}')|replace('^','\\textasciicircum{}')-][# endmacro #]
+[# macro escmath(s) #][-s|default('')|string|replace('&','\\&')|replace('%','\\%')|replace('#','\\#')-][# endmacro #]
+%% The running head falls back to the title. An absent short_title used to render
+%% \runtitle{}, which printed a BLANK running head on every odd page rather than
+%% failing; a too-long head is visibly wrong, an empty one is not.
+\title{[-escmath(doc.title)-]}
+\runtitle{[-escmath(doc.short_title or doc.title)-]}
 
 \begin{aug}
 % use \particle for den|der|de|van|von (only lc!)
@@ -169,9 +177,9 @@
 %%% initials in fnms (if any) with spaces
 %
 [# for author in doc.authors #]
-%% The bracket group is emitted only for authors that have affiliations. A bare
-%% \author[]{...} drops the affiliation line and still exits 0.
-%% See docs/template-internals.md "Authors and addresses".
+%% The bracket group is emitted only for authors that have affiliations, and the
+%% full name is the LAST resort of the SURNAME chain, never a given-name fallback
+%% (that rendered a mononym as "Aristotle Aristotle"). See docs/template-internals.md.
 \author[# if author.affiliations #][
 [#- for affiliation in author.affiliations -#]
 [#- if affiliation is string -#]
@@ -180,25 +188,26 @@
 [-affiliation.id|default(affiliation)-]
 [#- endif -#]
 [#- if not loop.last -#],[#- endif -#]
-[#- endfor -#]][# endif #]{\fnms{
+[#- endfor -#]][# endif #]{
 [#- if author.nameParsed.given is defined -#]
-[-author.nameParsed.given|trim-]
+\fnms{[-esc(author.nameParsed.given|trim)-]}~
 [#- elif author.name.given is defined -#]
-[-author.name.given|trim-]
+\fnms{[-esc(author.name.given|trim)-]}~
 [#- elif author.given is defined -#]
-[-author.given|trim-]
-[#- else -#]
-[-author.name|trim-]
-[#- endif -#]}~\snm{
+\fnms{[-esc(author.given|trim)-]}~
+[#- endif -#]
+\snm{
 [#- if author.nameParsed.family is defined -#]
-[-author.nameParsed.family|trim-]
+[-esc(author.nameParsed.family|trim)-]
 [#- elif author.name.surname is defined -#]
-[-author.name.surname|trim-]
+[-esc(author.name.surname|trim)-]
 [#- elif author.surname is defined -#]
-[-author.surname|trim-]
+[-esc(author.surname|trim)-]
 [#- elif author.family is defined -#]
-[-author.family|trim-]
-[#- endif -#]}\ead[label=e[-loop.index-]]{[-author.email-]}}
+[-esc(author.family|trim)-]
+[#- else -#]
+[-esc(author.name|trim)-]
+[#- endif -#]}[# if author.email #]\ead[label=e[-loop.index-]]{[-author.email-]}[# endif #]}
 [# endfor #]
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Addresses                                %%
@@ -209,9 +218,9 @@
 [# for affiliation in doc.affiliations #]
 \address[[-affiliation.id-]]{%
 [# if affiliation.department|default('')|trim #]
-\orgdiv{[-affiliation.department|trim-]},
+\orgdiv{[-esc(affiliation.department|trim)-]},
 [# endif #]
-\orgname{[-affiliation.institution|default(affiliation.name)|default('')|trim-]}}
+\orgname{[-esc(affiliation.institution|default(affiliation.name)|default('')|trim)-]}}
 
 [# endfor #]
 %% Fallback address for authors with no affiliations: the class substitutes the
@@ -244,13 +253,16 @@
 [# endif #]
 
 [# if not options.supplement #]
-\begin{keyword}
+%% The guard wraps \begin{keyword}, not just the \kwd list: the class emits its
+%% "Keywords." label when the ENVIRONMENT opens, so an empty one printed a bare
+%% label. Same trap as the JEL block below, which was fixed first.
 [# if doc.keywords #]
+\begin{keyword}
 [# for kw in doc.keywords #]
-\kwd{[-kw|trim-]}
+\kwd{[-esc(kw|trim)-]}
 [# endfor #]
-[# endif #]
 \end{keyword}
+[# endif #]
 
 %% Omit the block when there are no codes: the class prints its "JEL
 %% CLASSIFICATION" label regardless of content. Also suppressed under ecta, with
@@ -263,7 +275,7 @@
 [# else #]
 \begin{keyword}[class=JEL] %% alphabetical order
 [# for code in doc.tags #]
-\kwd{[-code|trim-]}
+\kwd{[-esc(code|trim)-]}
 [# endfor #]
 \end{keyword}
 [# endif #]
