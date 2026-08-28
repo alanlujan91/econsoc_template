@@ -113,6 +113,154 @@ jobs:
             rm -f "_ci_$f.md"
           done
 
+      # Rendering without error proves nothing about CONTENT: myst-to-tex drops
+      # proof kinds it cannot map and still exits 0 (see issue #1). Assert the
+      # kinds the sample declares actually reach the .tex.
+      - name: Assert declared content reaches the LaTeX
+        shell: bash
+        run: |
+          set -eo pipefail
+          tex=$(find sample -name '*.tex' -path '*_texcheck*' | head -1)
+          test -n "$tex" || { echo "no rendered .tex found"; exit 1; }
+          for env in theorem proposition lemma corollary definition remark; do
+            grep -q "\\\\begin{$env}" "$tex" \
+              || { echo "FAIL: \\begin{$env} missing from $tex"; exit 1; }
+          done
+          echo "all declared proof kinds present"
+
+      # A `---` attribution line in a blockquote makes MyST wrap it in a figure
+      # with \caption*. econsocart ignores the star and typesets "FIGURE 0." into
+      # the paper. Exit 0, no log error. Use `--`, which stays inside the quote.
+      - name: Assert no starred caption reaches the LaTeX
+        shell: bash
+        run: |
+          set -eo pipefail
+          for tex in $(find sample -name '*.tex' -path '*_texcheck*'); do
+            if grep -n '\\caption\*' "$tex"; then
+              echo "FAIL: \\caption* in $tex renders as FIGURE 0"
+              echo "A blockquote attribution written '--- Name' causes this; use '-- Name'."
+              exit 1
+            fi
+          done
+          echo "no starred captions"
+
+  check-escaping:
+    name: Assert LaTeX Specials Are Escaped
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install MyST
+        run: npm install -g mystmd
+
+      # The assertions live in a script so they can be seeded and re-run. They
+      # were verified by hand in scratch directories during the session that
+      # found the bugs, which is a memory rather than coverage.
+      - name: Assert specials escaped and absent fields emit no empty macros
+        run: scripts/check-escaping.sh
+
+      # An assertion that cannot fail protects nothing. Four seeded defects, one
+      # per assertion class, each of which must be caught.
+      - name: Assert the escaping checks can still fail
+        run: scripts/check-escaping.sh --self-test
+
+  build-pdf:
+    name: Compile Samples to PDF and Gate the Log
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      # texlive-xetex is not optional: myst drives xelatex and xdvipdfmx, and
+      # neither ships in texlive-latex-extra. The set below was derived from the
+      # .sty files a real local compile loads, not guessed.
+      #   adjustbox/cleveref/epigraph/supertabular/threeparttable/wrapfig ->
+      #     latex-extra; algorithmicx/mhchem -> science; times/helvet -> fonts-*
+      - name: Install MyST and a TeX toolchain
+        run: |
+          npm install -g mystmd
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            latexmk texlive-xetex texlive-latex-extra texlive-latex-recommended \
+            texlive-science texlive-fonts-recommended texlive-fonts-extra \
+            poppler-utils
+
+      # A missing package makes xelatex's nonstopmode recovery DELETE the glyph
+      # and still exit 0, so prove every package the template declares resolves
+      # before trusting any later assertion.
+      - name: Assert every declared package is installed
+        run: |
+          set -eo pipefail
+          missing=""
+          for p in adjustbox algpseudocode amssymb bm cancel changepage cleveref \
+                   epigraph etoolbox hyperref mhchem multirow subcaption \
+                   supertabular tabularx threeparttable wrapfig natbib caption; do
+            kpsewhich "$p.sty" >/dev/null || missing="$missing $p"
+          done
+          [ -z "$missing" ] || { echo "FAIL: missing .sty:$missing"; exit 1; }
+          command -v xelatex >/dev/null || { echo "FAIL: xelatex not installed"; exit 1; }
+          command -v xdvipdfmx >/dev/null || { echo "FAIL: xdvipdfmx not installed"; exit 1; }
+          echo "all declared packages resolve"
+
+      # scripts/build-samples.sh is the gate. It already clears exports so no
+      # stale artifact can satisfy an assertion, asserts the export count, greps
+      # each log with a regex that covers latexmk's -file-line-error rewriting
+      # and `Class econsocart Error:`, and checks the emitted \bibliographystyle
+      # per journal. It ran only in pre-commit until now, so CI never saw it.
+      - name: Build and verify every sample export
+        run: |
+          set -eo pipefail
+          scripts/build-samples.sh 2>&1 | tee build.log
+
+      # The two things build-samples.sh cannot see. A jtex render error aborts
+      # the export BEFORE any LaTeX log exists, and mystmd still exits 0, so the
+      # only trace is this stdout.
+      - name: Gate the myst stdout for render aborts
+        run: |
+          set -eo pipefail
+          grep -q 'This is BibTeX' build.log \
+            || { echo "FAIL: bibtex never ran; the gate would pass vacuously"; exit 1; }
+          if grep -nE 'Template render error|TypeError' build.log; then
+            echo "FAIL: a template render aborted above"; exit 1
+          fi
+          echo "no render aborts, bibtex ran"
+
+      # The strongest gate here. Page counts and a title string do not notice
+      # three proof blocks silently vanishing, which is what happened; only a
+      # text diff against the committed artifact does.
+      - name: Diff rebuilt PDF text against the committed artifacts
+        run: |
+          set -eo pipefail
+          rc=0
+          for f in sample/exports/*.pdf; do
+            git show "HEAD:$f" > /tmp/committed.pdf
+            pdftotext /tmp/committed.pdf /tmp/committed.txt
+            pdftotext "$f" /tmp/rebuilt.txt
+            if ! diff -q /tmp/committed.txt /tmp/rebuilt.txt >/dev/null; then
+              echo "=== $f text differs from the committed PDF ==="
+              diff /tmp/committed.txt /tmp/rebuilt.txt | head -30
+              rc=1
+            fi
+          done
+          if [ "$rc" -ne 0 ]; then
+            echo
+            echo "The committed PDFs no longer match what this source builds."
+            echo "If the change is intended, rebuild and commit them:"
+            echo "  rm -rf _build sample/exports/*_pdf_tex sample/exports/*_pdf_logs"
+            echo "  myst build --pdf --force"
+            exit 1
+          fi
+          echo "all six PDFs match the committed text"
+
   check-ascii:
     name: Check for Non-ASCII Characters
     runs-on: ubuntu-latest
@@ -225,6 +373,63 @@ jobs:
             echo "ERROR: 'final' emitted alongside 'linenumbers'; the option is inert" >&2
             exit 1
           fi
+
+  test-extra-features:
+    # extra_packages and open_access are declared in template.yml and had no
+    # test at all. Neither fits the boolean options matrix: one is a string
+    # export option, the other a frontmatter field.
+    name: Render extra_packages and open_access
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install MyST
+        run: npm install -g mystmd
+
+      - name: Render a document using both
+        run: |
+          set -eo pipefail
+          cat > test_extra.md << 'EOF'
+          ---
+          title: Extra Features
+          short_title: Extra
+          open_access: true
+          authors:
+            - name: Ada Test
+              email: a@example.org
+              affiliations: [u]
+          affiliations:
+            - id: u
+              institution: Test University
+          exports:
+            - format: tex
+              template: ./
+              output: test_extra_tex
+              extra_packages: tikz,pgfplots
+          ---
+
+          Body.
+          EOF
+          myst build test_extra.md --tex
+
+      - name: Assert both reached the emitted LaTeX
+        run: |
+          set -eo pipefail
+          tex=$(find test_extra_tex -name '*.tex' | head -1)
+          test -n "$tex" || { echo "FAIL: no .tex emitted"; exit 1; }
+          # The option is emitted verbatim as one comma-separated \usepackage,
+          # which is valid LaTeX; asserting one line per name would fail here.
+          grep -q '^\\usepackage{tikz,pgfplots}$' "$tex" \
+            || { echo "FAIL: extra_packages did not reach \\usepackage"; exit 1; }
+          # open_access must reach the class options; the licence text it gates
+          # is added by the journal at production and is not asserted here.
+          grep -m1 '^\\documentclass' "$tex" | grep -q 'openaccess' \
+            || { echo "FAIL: open_access did not reach \\documentclass"; exit 1; }
+          echo "extra_packages and open_access both reach the LaTeX"
 
   test-journal-options:
     # The `journal` choice option selects both the econsocart class option (the
@@ -341,7 +546,11 @@ jobs:
 
       - name: Assert class option and bibliography style
         run: |
+          set -eo pipefail
           tex=$(find test_${{ matrix.label }}_tex -name '*.tex' | head -1)
+          # An empty $tex would make every grep below read stdin and hang, or
+          # pass vacuously; the assertions are only meaningful on a real file.
+          test -n "$tex" || { echo "FAIL: no .tex produced"; exit 1; }
           echo "Checking $tex"
 
           # preprint renders with the qe layout; every other value passes through.
