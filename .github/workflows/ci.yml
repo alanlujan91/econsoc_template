@@ -67,6 +67,31 @@ jobs:
           print("All template files exist!")
           EOF
 
+      # Declaring a package in template.yml SUPPRESSES MyST's injection of it,
+      # so a declaration nothing loads leaves the macros without the package.
+      # That was the booktabs defect; amssymb would be worse, since MyST never
+      # injects it under any condition.
+      - name: Assert every declared package is actually loaded
+        shell: bash
+        run: |
+          set -eo pipefail
+          loads() {
+            grep -qE "(usepackage|RequirePackage)(\[[^]]*\])?\{[^}]*\b$1\b[^}]*\}" "$2"
+          }
+          declared=$(sed -n '/^packages:/,$p' template.yml | grep '^  - ' | sed 's/^  - //')
+          test -n "$declared" || { echo "FAIL: no packages parsed from template.yml"; exit 1; }
+          echo "checking $(printf '%s\n' "$declared" | wc -l) declared packages"
+          missing=""
+          for p in $declared; do
+            loads "$p" template.tex || loads "$p" econsocart.cls || loads "$p" econsocart.cfg \
+              || missing="$missing $p"
+          done
+          [ -z "$missing" ] || {
+            echo "FAIL: declared in template.yml but loaded by nothing:$missing"
+            echo "A declaration stops MyST injecting it, so these macros would be undefined."
+            exit 1; }
+          echo "every declaration is backed by a real load"
+
       - name: Check thumbnail exists
         run: |
           if [ ! -f thumbnail.png ]; then
