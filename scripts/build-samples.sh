@@ -193,6 +193,17 @@ for pdf in "${pdfs[@]}"; do
         echo "       usually means the .bst is missing, unreadable, or not shipped." >&2
         status=1
     fi
+
+    # An unresolved cross-reference bakes in as a literal ?? with no warning. A
+    # numbered [Sec %s](#label) link does it in every single-article export
+    # (jupyter-book/mystmd#3035), so ordinary MyST reaches it.
+    unresolved=$(pdftotext "$pdf" - 2>/dev/null | grep -c '??' || true)
+    if [ "$unresolved" -ne 0 ]; then
+        echo "ERROR: $pdf contains $unresolved unresolved cross-reference(s) printed as ??." >&2
+        echo "       A [Text %s](#label) numbered link renders ?? in exports; use" >&2
+        echo '       {raw:latex}`Text~\ref{label}` instead. See README "Cross-References".' >&2
+        status=1
+    fi
 done
 
 if [ "$status" -eq 0 ]; then
