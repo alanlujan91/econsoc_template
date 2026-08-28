@@ -243,9 +243,14 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Addresses                                %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% \orgdiv and its comma are emitted only for affiliations carrying a department;
+%% a bare `name:` affiliation otherwise prints a stray comma.
+%% See docs/template-internals.md "Authors and addresses".
 [# for affiliation in doc.affiliations #]
 \address[[-affiliation.id-]]{%
-\orgdiv{[-affiliation.department|default('')|trim-]},
+[# if affiliation.department|default('')|trim #]
+\orgdiv{[-affiliation.department|trim-]},
+[# endif #]
 \orgname{[-affiliation.institution|default(affiliation.name)|default('')|trim-]}}
 
 [# endfor #]
