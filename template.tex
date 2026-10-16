@@ -133,6 +133,14 @@
 \theoremstyle{plain}
 \newtheorem{assumption}{Assumption}
 \newtheorem{algorithm}{Algorithm}
+%% Opt-in aliases for the axiom/observation workaround: the block prints and
+%% numbers as Assumption/Algorithm. Off by default, so a genuine axiom keeps its name.
+[# if options.axiom_as_assumption #]
+\let\axiom\assumption\let\endaxiom\endassumption
+[# endif #]
+[# if options.observation_as_algorithm #]
+\let\observation\algorithm\let\endobservation\endalgorithm
+[# endif #]
 
 %% cleveref must load after amsmath, amsthm, hyperref, and the theorem
 %% definitions above, so it is loaded here at the end of the preamble.

@@ -106,6 +106,19 @@ options:
     id: linenumbers
     description: Display line numbers (useful during review)
     default: false
+  - type: boolean
+    id: axiom_as_assumption
+    description: >-
+      Print {prf:axiom} blocks as "Assumption N" on the assumption counter. Use it
+      when assumptions are written as axioms because myst-to-tex drops
+      {prf:assumption} (README "Theorem-like Environments").
+    default: false
+  - type: boolean
+    id: observation_as_algorithm
+    description: >-
+      Print {prf:observation} blocks as "Algorithm N" on the algorithm counter, the
+      same workaround for {prf:algorithm}.
+    default: false
   - type: string
     id: extra_packages
     description: >-
