@@ -1,0 +1,54 @@
+version: 1
+project:
+  title: Plugin fixture
+  short_title: Plugins
+  authors:
+    - name: A. Author
+      affiliations: [inst]
+  affiliations:
+    - id: inst
+      institution: University
+  bibliography: references.bib
+  # Project-level numbering, as a real paper sets it: under it a single-article export loses
+  # its top-level heading numbers (jupyter-book/mystmd#3035)
+  numbering:
+    title:
+      enabled: false
+    headings: true
+  # ack.md is a frontmatter part, not a page
+  toc:
+    - file: article.md
+    - file: supplement.md
+  # The documented order: xref first, so references inside a restored proof block are fixed
+  # before proof-kinds renders that block's body to LaTeX
+  plugins:
+    - ../../plugins/xref.mjs
+    - ../../plugins/part-citations.mjs
+    - ../../plugins/proof-kinds.mjs
+  # `pdf`, not `tex+pdf`: `myst build --tex` also compiles every tex+pdf export
+  exports:
+    - id: article-tex
+      format: tex
+      template: ../../
+      output: _build/out/article.tex
+      articles: [article.md]
+    - id: supplement-tex
+      format: tex
+      template: ../../
+      supplement: true
+      output: _build/out/supplement.tex
+      articles: [supplement.md]
+    - id: article-pdf
+      format: pdf
+      template: ../../
+      output: _build/out/article.pdf
+      articles: [article.md]
+    - id: supplement-pdf
+      format: pdf
+      template: ../../
+      supplement: true
+      output: _build/out/supplement.pdf
+      articles: [supplement.md]
+# A site of its own, or `myst build --site` here builds into the repository root's site
+site:
+  template: article-theme

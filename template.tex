@@ -127,12 +127,14 @@
 
 \makeatother
 
-%% Defined for the assumption and algorithm prf kinds. algorithm is a theorem, not
-%% the float package. Released myst-to-tex DROPS both from the .tex (upstream
-%% issue 3030). See README "Algorithms" and docs/template-internals.md.
+%% The four prf kinds released myst-to-tex drops (upstream issue 3030), which
+%% plugins/proof-kinds.mjs restores. algorithm is a theorem, not the float
+%% package. See README "Algorithms" and docs/template-internals.md.
 \theoremstyle{plain}
 \newtheorem{assumption}{Assumption}
 \newtheorem{algorithm}{Algorithm}
+\newtheorem{criterion}{Criterion}
+\newtheorem{property}{Property}
 %% Opt-in aliases for the axiom/observation workaround: the block prints and
 %% numbers as Assumption/Algorithm. Off by default, so a genuine axiom keeps its name.
 [# if options.axiom_as_assumption #]

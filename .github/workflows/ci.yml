@@ -374,6 +374,30 @@ jobs:
           fi
           echo "all six PDFs match the committed text"
 
+      # The plugin fixture, compiled: each document must print the numbers the other gives it
+      - name: Check the plugins against their compiled fixture
+        run: scripts/check-plugins.sh --pdf
+
+  check-plugins:
+    # Every case in plugins/README.md exits 0 without its plugin, so the check reads the emitted
+    # LaTeX, and requires the same assertions to fail once the plugins are removed. No TeX needed.
+    name: Check the MyST Plugins
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install MyST and the bundle's build inputs
+        run: |
+          npm install -g mystmd
+          cd plugins && npm ci
+
+      - name: Check the plugins, and that the committed bundle matches its source
+        run: scripts/check-plugins.sh
+
   check-ascii:
     name: Check for Non-ASCII Characters
     runs-on: ubuntu-latest
