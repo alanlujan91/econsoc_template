@@ -1,15 +1,5 @@
-# Continuous Integration Workflow
-#
-# This workflow runs on every push and pull request to validate the template.
-# It ensures:
-# - Template structure is valid (jtex check)
-# - All referenced files exist
-# - Sample document compiles successfully
-# - No unicode characters in source files
-# - Documentation is properly formatted
-# - Template options work correctly
-#
-# For more details on automation, see README.md "Development & Quality Assurance"
+# CI: jtex template check, ASCII-only sources, template options in the emitted LaTeX, sample
+# PDFs (clean logs, unchanged text), the MyST plugins, and the vendored files' drift guard.
 
 name: CI
 
@@ -18,6 +8,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Weekly: CI installs the latest mystmd and plugins/ relies on its internals,
+  # so an upstream release that breaks them (or fixes their bug) shows up here.
+  schedule:
+    - cron: '17 6 * * 1'
   # Manual trigger. Both automatic triggers are push-driven, so when GitHub's
   # webhook delivery is degraded no run is created at all and there is no way to
   # start one by hand. This costs two lines and removes that dependency.
@@ -51,26 +45,9 @@ jobs:
       - name: Check template.yml
         run: jtex check
 
-      - name: Verify all template files exist
-        run: |
-          python3 << 'EOF'
-          import yaml, sys, os
-          with open('template.yml') as f:
-              template = yaml.safe_load(f)
-          missing = []
-          for file in template.get('files', []):
-              if not os.path.exists(file):
-                  missing.append(file)
-          if missing:
-              print(f"ERROR: Missing template files: {', '.join(missing)}")
-              sys.exit(1)
-          print("All template files exist!")
-          EOF
-
-      # Declaring a package in template.yml SUPPRESSES MyST's injection of it,
-      # so a declaration nothing loads leaves the macros without the package.
-      # That was the booktabs defect; amssymb would be worse, since MyST never
-      # injects it under any condition.
+      # Declaring a package in template.yml SUPPRESSES MyST's injection of it, so a
+      # declaration nothing loads leaves its macros undefined (the booktabs defect;
+      # MyST never injects amssymb at all).
       - name: Assert every declared package is actually loaded
         shell: bash
         run: |
@@ -91,101 +68,6 @@ jobs:
             echo "A declaration stops MyST injecting it, so these macros would be undefined."
             exit 1; }
           echo "every declaration is backed by a real load"
-
-      - name: Check thumbnail exists
-        run: |
-          if [ ! -f thumbnail.png ]; then
-            echo "ERROR: Missing thumbnail.png"
-            echo "Generate a thumbnail from the sample PDF first page"
-            exit 1
-          fi
-
-  render-samples:
-    # CI validates that the template RENDERS valid LaTeX, which needs no TeX
-    # toolchain. PDF *compilation* (which needs a full TeX install plus the
-    # packages in template.yml `packages:`) is validated locally by the
-    # pre-commit `build-sample-pdf` hook, where the author already has TeX.
-    # To render without compiling, the samples' `tex+pdf` export is swapped to
-    # `format: tex` and built with `--tex`.
-    name: Render Samples to LaTeX
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: Install image conversion tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y imagemagick ghostscript poppler-utils
-
-      - name: Install MyST
-        run: npm install -g mystmd
-
-      - name: Render sample and supplement to LaTeX (no TeX toolchain)
-        run: |
-          cd sample
-          # Each source carries one export per journal, so this renders six
-          # documents: every journal for both the article and the supplement.
-          # The output rewrite has to strip the exports/ directory as well as
-          # the .pdf suffix, or the dry run would write into the tracked
-          # output location.
-          for f in article supplement; do
-            sed "s/format: tex+pdf/format: tex/; s#output: exports/\(.*\)\.pdf#output: \1_texcheck#" "$f.md" > "_ci_$f.md"
-            myst build "_ci_$f.md" --tex
-            rm -f "_ci_$f.md"
-          done
-
-      # Rendering without error proves nothing about CONTENT: myst-to-tex drops
-      # proof kinds it cannot map and still exits 0 (see issue #1). Assert the
-      # kinds the sample declares actually reach the .tex.
-      - name: Assert declared content reaches the LaTeX
-        shell: bash
-        run: |
-          set -eo pipefail
-          # Every emitted file, not `head -1`: the pick is filesystem-ordered, so
-          # one run checks the article and the next the supplement.
-          found=0
-          for tex in $(find sample -name '*.tex' -path '*_texcheck*' | sort); do
-            found=1
-            # Exactly the kinds the samples declare AND myst-to-tex maps. They
-            # use no corollary; asserting one asserts a fiction.
-            for env in theorem proposition lemma definition remark axiom example; do
-              grep -q "\\\\begin{$env}" "$tex" \
-                || { echo "FAIL: \\begin{$env} missing from $tex"; exit 1; }
-            done
-            # assumption and algorithm are DROPPED by released myst-to-tex, so
-            # the samples declare them and the .tex must not contain them. When
-            # jupyter-book/mystmd#3031 releases this flips and CI goes red on
-            # purpose: rebuild sample/exports and drop the note in article.md.
-            for env in assumption algorithm; do
-              if grep -q "\\\\begin{$env}" "$tex"; then
-                echo "$env now reaches the LaTeX: mystmd#3031 has landed."
-                echo "Rebuild sample/exports/ and drop the note in sample/article.md (issue #1)."
-                exit 1
-              fi
-            done
-          done
-          test "$found" = 1 || { echo "no rendered .tex found"; exit 1; }
-          echo "declared proof kinds present in every export; dropped kinds absent"
-
-      # A `---` attribution line in a blockquote makes MyST wrap it in a figure
-      # with \caption*. econsocart ignores the star and typesets "FIGURE 0." into
-      # the paper. Exit 0, no log error. Use `--`, which stays inside the quote.
-      - name: Assert no starred caption reaches the LaTeX
-        shell: bash
-        run: |
-          set -eo pipefail
-          for tex in $(find sample -name '*.tex' -path '*_texcheck*'); do
-            if grep -n '\\caption\*' "$tex"; then
-              echo "FAIL: \\caption* in $tex renders as FIGURE 0"
-              echo "A blockquote attribution written '--- Name' causes this; use '-- Name'."
-              exit 1
-            fi
-          done
-          echo "no starred captions"
 
   check-escaping:
     name: Assert LaTeX Specials Are Escaped
@@ -223,11 +105,9 @@ jobs:
         with:
           node-version: 18
 
-      # texlive-xetex is not optional: myst drives xelatex and xdvipdfmx, and
-      # neither ships in texlive-latex-extra. The set below was derived from the
-      # .sty files a real local compile loads, not guessed.
-      #   adjustbox/cleveref/epigraph/supertabular/threeparttable/wrapfig ->
-      #     latex-extra; algorithmicx/mhchem -> science; times/helvet -> fonts-*
+      # texlive-xetex is required (myst drives xelatex and xdvipdfmx). The rest follow the .sty
+      # files a compile loads: latex-extra for adjustbox/cleveref/epigraph/supertabular/
+      # threeparttable/wrapfig, science for algorithmicx/mhchem, fonts-* for times/helvet.
       - name: Install MyST and a TeX toolchain
         run: |
           npm install -g mystmd
@@ -243,11 +123,12 @@ jobs:
       - name: Assert every declared package is installed
         run: |
           set -eo pipefail
+          declared=$(sed -n '/^packages:/,$p' template.yml | grep '^  - ' | sed 's/^  - //')
+          test -n "$declared" || { echo "FAIL: no packages parsed from template.yml"; exit 1; }
+          # Loaded without a declaration: natbib by econsocart.cfg, caption by subcaption.
+          class_loaded="natbib caption"
           missing=""
-          for p in adjustbox algpseudocode amssymb array booktabs bm cancel \
-                   changepage cleveref epigraph etoolbox hyperref mhchem multirow \
-                   subcaption supertabular tabularx threeparttable wrapfig \
-                   natbib caption; do
+          for p in $declared $class_loaded; do
             kpsewhich "$p.sty" >/dev/null || missing="$missing $p"
           done
           [ -z "$missing" ] || { echo "FAIL: missing .sty:$missing"; exit 1; }
@@ -316,11 +197,8 @@ jobs:
             || { echo "FAIL: raw table did not render"; exit 1; }
           echo "raw booktabs table compiles and renders"
 
-      # scripts/build-samples.sh is the gate. It already clears exports so no
-      # stale artifact can satisfy an assertion, asserts the export count, greps
-      # each log with a regex that covers latexmk's -file-line-error rewriting
-      # and `Class econsocart Error:`, and checks the emitted \bibliographystyle
-      # per journal. It ran only in pre-commit until now, so CI never saw it.
+      # scripts/build-samples.sh is the gate: it clears and counts the exports, greps each log, and
+      # checks the emitted \bibliographystyle per journal. docs/template-internals.md says why.
       - name: Build and verify every sample export
         run: |
           set -eo pipefail
@@ -334,13 +212,13 @@ jobs:
           set -eo pipefail
           grep -q 'This is BibTeX' build.log \
             || { echo "FAIL: bibtex never ran; the gate would pass vacuously"; exit 1; }
-          if grep -nE 'Template render error|TypeError' build.log; then
-            echo "FAIL: a template render aborted above"; exit 1
+          . scripts/lib-econsoc.sh
+          if render_aborted build.log; then
+            echo "FAIL: a template render aborted (see the build log above)"; exit 1
           fi
-          # A structural macro in the FENCED raw form gets parsed by tex-to-myst,
-          # which cannot convert a bare \begin/\end pair: it logs this and renders
-          # the environment name as an orphan paragraph on the website. Use the
-          # colon form for those. macro_legend is expected and not matched here.
+          # A \begin/\end pair in the FENCED raw form is parsed by tex-to-myst, which logs
+          # this and puts the environment name on the website; use :::{raw:latex}.
+          # macro_legend is expected.
           if grep -nE 'Unhandled TEX conversion for node of "macro_(begin|end)"' build.log; then
             echo "FAIL: a \\begin/\\end pair is in a fenced raw block; use :::{raw:latex}"
             exit 1
@@ -374,29 +252,13 @@ jobs:
           fi
           echo "all six PDFs match the committed text"
 
-      # The plugin fixture, compiled: each document must print the numbers the other gives it
-      - name: Check the plugins against their compiled fixture
-        run: scripts/check-plugins.sh --pdf
-
-  check-plugins:
-    # Every case in plugins/README.md exits 0 without its plugin, so the check reads the emitted
-    # LaTeX, and requires the same assertions to fail once the plugins are removed. No TeX needed.
-    name: Check the MyST Plugins
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: Install MyST and the bundle's build inputs
+      # Every plugins/README.md case exits 0 without its plugin, so this reads the emitted LaTeX
+      # and the compiled fixture (each document prints the numbers the other gives it), requires
+      # failure with the plugins removed, and after npm ci checks the bundle against its source.
+      - name: Check the plugins, their compiled fixture, and the committed bundle
         run: |
-          npm install -g mystmd
-          cd plugins && npm ci
-
-      - name: Check the plugins, and that the committed bundle matches its source
-        run: scripts/check-plugins.sh
+          (cd plugins && npm ci)
+          scripts/check-plugins.sh --pdf
 
   check-ascii:
     name: Check for Non-ASCII Characters
@@ -404,363 +266,111 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The same hook pre-commit runs, so the file list exists once.
       - name: Check user-editable files for unicode
-        run: |
-          FILES="README.md sample/article.md sample/appendix.md sample/supplement.md template.tex template.yml myst.yml"
+        run: pipx run pre-commit run check-ascii --all-files
 
-          for file in $FILES; do
-            if [ -f "$file" ]; then
-              echo "Checking $file..."
-              if ! python3 -c "import sys; content = open('$file', 'rb').read(); non_ascii = [i for i, b in enumerate(content) if b > 127]; sys.exit(1 if non_ascii else 0)"; then
-                echo "ERROR: Non-ASCII characters found in $file"
-                exit 1
-              fi
+  test-options:
+    # Renders one document per case to LaTeX (no TeX toolchain) and asserts each option's own
+    # token in the output: a render that merely succeeds passes with the option's conditional
+    # deleted from template.tex. `final` is the default branch, which build-pdf exercises.
+    name: Render Template Options to LaTeX
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install MyST
+        run: npm install -g mystmd
+
+      - name: Render each option and assert it reaches the LaTeX
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail() { echo "FAIL ($label): $*" >&2; exit 1; }
+          has_opt() { printf '%s' "$class" | grep -q "[,[]$1[],]"; }
+          # render LABEL KEY:VALUE...: one export option per pair; $fm replaces open_access: false,
+          # which myst.yml would otherwise make true everywhere. The citation is REQUIRED: without
+          # one doc.bibliography stays empty and template.tex emits no \bibliographystyle.
+          render() {
+            label=$1; shift
+            opts=$(printf '    %s\n' "$@")
+          cat > "test_$label.md" <<EOF
+          ---
+          title: Test Document ($label)
+          short_title: Test
+          ${fm:-open_access: false}
+          exports:
+            - format: tex
+              template: ./
+              output: test_${label}_tex
+          $opts
+          authors:
+            - name: {given: Test, surname: Author}
+              email: test@example.com
+              affiliations: [aff1]
+          affiliations:
+            - {id: aff1, department: Test Department, institution: Test University}
+          keywords: [test]
+          tags: [C00]
+          bibliography: sample/references.bib
+          parts:
+            abstract: Test abstract
+            acknowledgement: Test acknowledgement
+          ---
+
+          # Test Section
+
+          Test document for $label {cite:t}\`b2\`.
+          EOF
+            myst build "test_$label.md" --tex < /dev/null
+            tex=$(find "test_${label}_tex" -name '*.tex' | head -1)
+            test -n "$tex" || fail "no .tex emitted"
+            class=$(grep -m1 '^\\documentclass' "$tex")
+            echo "$label: $class"
+          }
+
+          # econsocart processes options in declaration order, so `final` emitted beside
+          # `linenumbers` silently makes it inert.
+          for opt in draft seceqn linenumbers supplement; do
+            render "$opt" "$opt: true"
+            has_opt "$opt" || fail "option '$opt' missing from the emitted \\documentclass"
+            has_opt openaccess && fail "openaccess emitted although open_access is false"
+            if [ "$opt" = linenumbers ] && has_opt final; then
+              fail "'final' emitted alongside 'linenumbers'; the option is inert"
             fi
           done
 
-          echo "All files are ASCII-clean!"
+          # extra_packages is emitted verbatim as one comma-separated \usepackage.
+          fm='open_access: true' render extra 'extra_packages: tikz,pgfplots'
+          grep -q '^\\usepackage{tikz,pgfplots}$' "$tex" || fail "extra_packages did not reach \\usepackage"
+          has_opt openaccess || fail "open_access did not reach \\documentclass"
 
-  test-template-options:
-    # Renders the template to LaTeX (no TeX toolchain) for each declared boolean
-    # option, to catch conditional-logic regressions. `final` is NOT tested: it
-    # is not a declared option (it is the default when draft is false, emitted by
-    # the [# else #] branch), and the render-samples job exercises that default.
-    # Recommended by MyST docs: "Your template should work in an incomplete state"
-    # Source: https://mystmd.org/jtex/create-a-latex-template
-    name: Render Template with Different Options
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        option: [draft, seceqn, linenumbers, supplement]
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: Install MyST
-        run: npm install -g mystmd
-
-      - name: Create test document with ${{ matrix.option }} option
-        run: |
-          cat > test_${{ matrix.option }}.md << 'EOF'
-          ---
-          title: Test Document (${{ matrix.option }})
-          short_title: Test
-          exports:
-            - format: tex
-              template: ./
-              output: test_${{ matrix.option }}_tex
-              ${{ matrix.option }}: true
-          authors:
-            - name:
-                given: Test
-                surname: Author
-              email: test@example.com
-              affiliations: ["aff1"]
-          affiliations:
-            - id: aff1
-              department: Test Department
-              institution: Test University
-          keywords:
-            - test
-          tags:
-            - C00
-          bibliography: sample/references.bib
-          parts:
-            abstract: Test abstract
-            acknowledgement: Test acknowledgement
-          ---
-
-          # Test Section
-
-          This is a test document to verify template option: ${{ matrix.option }}.
-          EOF
-
-      - name: Render with ${{ matrix.option }} option (no TeX toolchain)
-        run: myst build test_${{ matrix.option }}.md --tex
-
-      - name: Assert ${{ matrix.option }} actually reached the class options
-        # Rendering alone asserts nothing. Deleting an option's conditional from
-        # template.tex entirely leaves this job green if it only checks that the
-        # build did not crash, so each option is checked for its own token on the
-        # emitted \documentclass line. `linenumbers` additionally asserts that
-        # `final` is ABSENT: econsocart processes options in declaration order, so
-        # emitting `final` alongside `linenumbers` silently makes the option inert.
-        run: |
-          set -euo pipefail
-          tex=$(find test_${{ matrix.option }}_tex -name '*.tex' | head -1)
-          if [ -z "$tex" ]; then
-            echo "no .tex emitted for ${{ matrix.option }}" >&2; exit 1
-          fi
-          line=$(grep -m1 '^\\documentclass' "$tex")
-          echo "documentclass: $line"
-          case "${{ matrix.option }}" in
-            draft)       expect=draft ;;
-            seceqn)      expect=seceqn ;;
-            linenumbers) expect=linenumbers ;;
-            supplement)  expect=supplement ;;
-          esac
-          if ! printf '%s' "$line" | grep -q "[,[]$expect[],]"; then
-            echo "ERROR: option '$expect' missing from the emitted \\documentclass" >&2
-            exit 1
-          fi
-          if [ "${{ matrix.option }}" = linenumbers ] && printf '%s' "$line" | grep -q '[,[]final[],]'; then
-            echo "ERROR: 'final' emitted alongside 'linenumbers'; the option is inert" >&2
-            exit 1
-          fi
-
-  test-extra-features:
-    # extra_packages and open_access are declared in template.yml and had no
-    # test at all. Neither fits the boolean options matrix: one is a string
-    # export option, the other a frontmatter field.
-    name: Render extra_packages and open_access
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: Install MyST
-        run: npm install -g mystmd
-
-      - name: Render a document using both
-        run: |
-          set -eo pipefail
-          cat > test_extra.md << 'EOF'
-          ---
-          title: Extra Features
-          short_title: Extra
-          open_access: true
-          authors:
-            - name: Ada Test
-              email: a@example.org
-              affiliations: [u]
-          affiliations:
-            - id: u
-              institution: Test University
-          exports:
-            - format: tex
-              template: ./
-              output: test_extra_tex
-              extra_packages: tikz,pgfplots
-          ---
-
-          Body.
-          EOF
-          myst build test_extra.md --tex
-
-      - name: Assert both reached the emitted LaTeX
-        run: |
-          set -eo pipefail
-          tex=$(find test_extra_tex -name '*.tex' | head -1)
-          test -n "$tex" || { echo "FAIL: no .tex emitted"; exit 1; }
-          # The option is emitted verbatim as one comma-separated \usepackage,
-          # which is valid LaTeX; asserting one line per name would fail here.
-          grep -q '^\\usepackage{tikz,pgfplots}$' "$tex" \
-            || { echo "FAIL: extra_packages did not reach \\usepackage"; exit 1; }
-          # open_access must reach the class options; the licence text it gates
-          # is added by the journal at production and is not asserted here.
-          grep -m1 '^\\documentclass' "$tex" | grep -q 'openaccess' \
-            || { echo "FAIL: open_access did not reach \\documentclass"; exit 1; }
-          echo "extra_packages and open_access both reach the LaTeX"
-
-  test-journal-options:
-    # The `journal` choice option selects both the econsocart class option (the
-    # layout, running head, and "Submitted to ..." banner) and the BibTeX style.
-    # Rendering alone would not catch a wrong style, so each run asserts the
-    # emitted \bibliographystyle as well: Econometrica ships econsoc.bst,
-    # Quantitative Economics qe.bst, Theoretical Economics te.bst, and the
-    # neutral preprint mode borrows qe to match the qe layout it renders with.
-    #
-    # The `{cite:t}` in the test body is REQUIRED, not decoration. MyST only
-    # populates doc.bibliography when the document actually cites something, so
-    # without a citation template.tex takes its no-bibliography branch, emits no
-    # \bibliographystyle line at all, and every assertion below fails. Declaring
-    # `bibliography:` in the frontmatter is not sufficient on its own.
-    #
-    # The supplement legs exist because econsocart gives each journal different
-    # supplement metadata (Econometrica has its own supplement journal name and
-    # URL, and its own copyright owner), so supplement plumbing that works for
-    # qe can still break for ecta.
-    name: Render Template for Each Journal
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - label: qe
-            journal: qe
-            bst: qe
-          - label: ecta
-            journal: ecta
-            bst: econsoc
-          - label: te
-            journal: te
-            bst: te
-          # preprint is orthogonal to journal, so it gets tested ON a journal
-          # rather than instead of one. te was chosen deliberately: when preprint
-          # was itself a journal value it forced the qe layout, so a Theoretical
-          # Economics preprint was silently typeset as Quantitative Economics
-          # with qe.bst. This leg asserts the te class option and te.bst survive
-          # preprint mode, which is the regression that design allowed.
-          - label: te-preprint
-            journal: te
-            bst: te
-            preprint: true
-          - label: qe-preprint
-            journal: qe
-            bst: qe
-            preprint: true
-          - label: ecta-preprint
-            journal: ecta
-            bst: econsoc
-            preprint: true
-          - label: qe-supplement
-            journal: qe
-            bst: qe
-            supplement: true
-          - label: ecta-supplement
-            journal: ecta
-            bst: econsoc
-            supplement: true
-          - label: te-supplement
-            journal: te
-            bst: te
-            supplement: true
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: Install MyST
-        run: npm install -g mystmd
-
-      - name: Create test document for ${{ matrix.label }}
-        run: |
-          cat > test_${{ matrix.label }}.md << 'EOF'
-          ---
-          title: Test Document (${{ matrix.label }})
-          short_title: Test
-          exports:
-            - format: tex
-              template: ./
-              output: test_${{ matrix.label }}_tex
-              journal: ${{ matrix.journal }}
-              supplement: ${{ matrix.supplement || false }}
-              preprint: ${{ matrix.preprint || false }}
-          authors:
-            - name:
-                given: Test
-                surname: Author
-              email: test@example.com
-              affiliations: ["aff1"]
-          affiliations:
-            - id: aff1
-              department: Test Department
-              institution: Test University
-          keywords:
-            - test
-          tags:
-            - C00
-          bibliography: sample/references.bib
-          parts:
-            abstract: Test abstract
-            acknowledgement: Test acknowledgement
-          ---
-
-          # Test Section
-
-          This is a test document targeting: ${{ matrix.journal }} {cite:t}`b2`.
-          EOF
-
-      - name: Render for ${{ matrix.label }} (no TeX toolchain)
-        run: myst build test_${{ matrix.label }}.md --tex
-
-      - name: Assert class option and bibliography style
-        run: |
-          set -eo pipefail
-          tex=$(find test_${{ matrix.label }}_tex -name '*.tex' | head -1)
-          # An empty $tex would make every grep below read stdin and hang, or
-          # pass vacuously; the assertions are only meaningful on a real file.
-          test -n "$tex" || { echo "FAIL: no .tex produced"; exit 1; }
-          echo "Checking $tex"
-
-          # preprint renders with the qe layout; every other value passes through.
-          # preprint no longer substitutes a layout, so the class option is
-          # always the journal that was asked for.
-          expected_class='${{ matrix.journal }}'
-
-          if ! grep -q "documentclass\[$expected_class," "$tex"; then
-            echo "ERROR: expected econsocart class option '$expected_class'"
-            grep -n 'documentclass' "$tex" || true
-            exit 1
-          fi
-
-          if ! grep -q '\\bibliographystyle{${{ matrix.bst }}}' "$tex"; then
-            printf 'ERROR: expected \\bibliographystyle{%s}\n' '${{ matrix.bst }}'
-            grep -n 'bibliographystyle' "$tex" || true
-            exit 1
-          fi
-
-          # The class option and style assertions above are now IDENTICAL for a
-          # journal and its preprint, which is the point of making preprint
-          # orthogonal. So the suppression block itself has to be asserted, or
-          # nothing distinguishes the two and the only thing preprint does would
-          # be untested. It blanks the journal running head and suppresses the
-          # "Submitted to ..." line; breaking it would still render, still pass
-          # every other assertion, and start leaking the target journal into PDFs
-          # meant to be journal-neutral.
-          if [ '${{ matrix.preprint || false }}' = 'true' ]; then
-            if ! grep -q '\\def\\form@runauthors' "$tex"; then
-              echo "ERROR: preprint must suppress journal identification, but the"
-              printf '       \\form@runauthors override is absent from the output\n'
-              exit 1
-            fi
-            echo "OK: preprint suppression block present"
-          elif grep -q '\\def\\form@runauthors' "$tex"; then
-            echo "ERROR: ${{ matrix.label }} must NOT suppress journal identification,"
-            printf '       but the preprint-only \\form@runauthors override is present\n'
-            exit 1
-          fi
-
-          # Naming a style is not the same as shipping one. template.tex, this
-          # matrix, template.yml and the pre-commit file list all hardcode the
-          # journal-to-style mapping, and the vendoring script derives it from
-          # upstream instead. If upstream renames a style, the script vendors the
-          # new file while template.tex keeps emitting the old name, the old file
-          # is orphaned at the root where nothing checks it any more, and every
-          # other gate stays green. These two assertions tie the emitted name to
-          # what is actually vendored and actually shipped, without a toolchain.
-          if [ ! -f '${{ matrix.bst }}.bst' ]; then
-            echo "ERROR: ${{ matrix.bst }}.bst is named by the template but not vendored at the repo root"
-            ls -1 ./*.bst || true
-            exit 1
-          fi
-
-          if ! grep -qE "^ *- *${{ matrix.bst }}\.bst *$" template.yml; then
-            echo "ERROR: ${{ matrix.bst }}.bst is not in template.yml files:, so jtex will never copy it"
-            echo "       into the build directory and BibTeX will not find it"
-            exit 1
-          fi
-
-          echo "OK: class option '$expected_class', style '${{ matrix.bst }}' vendored and shipped"
+          # journal sets class option and .bst; preprint keeps both, so only its \form@runauthors
+          # block (blank running head, no "Submitted to") tells it apart. Supplement metadata
+          # differs per journal, hence a supplement leg each.
+          for leg in "qe qe qe false false" "ecta ecta econsoc false false" "te te te false false" \
+                     "te-preprint te te true false" "qe-preprint qe qe true false" \
+                     "ecta-preprint ecta econsoc true false" "qe-supplement qe qe false true" \
+                     "ecta-supplement ecta econsoc false true" "te-supplement te te false true"; do
+            read -r label journal bst preprint supplement <<<"$leg"
+            render "$label" "journal: $journal" "preprint: $preprint" "supplement: $supplement"
+            grep -q "documentclass\[$journal," "$tex" || fail "expected econsocart class option '$journal'"
+            grep -q "\\\\bibliographystyle{$bst}" "$tex" || fail "expected \\bibliographystyle{$bst}"
+            suppressed=false
+            if grep -q '\\def\\form@runauthors' "$tex"; then suppressed=true; fi
+            [ "$suppressed" = "$preprint" ] \
+              || fail "preprint=$preprint but journal-identification suppression present=$suppressed"
+          done
+          echo "every option, extra feature and journal leg reaches the LaTeX"
 
   check-upstream-drift:
-    # The class/bst files at the repo root are vendored copies of the pinned
-    # original/* submodules (kept in sync by sync-upstream-template.yml). They
-    # are copied, not symlinked, so the template stays self-contained when MyST
-    # fetches it (submodules are not fetched) and works on Windows. This job is
-    # the drift guard: it fails if a root copy diverges from the pinned commit.
-    #
-    # The source of each file is decided by scripts/sync-vendored.sh, not
-    # hardcoded here: econsocart.cls/.cfg are shared across all three journals
-    # and come from whichever submodule ships the newest release, while each
-    # .bst comes from its own journal.
+    # The root class/bst files are copies of the original/* submodules, since MyST fetches no
+    # submodules; this job fails when one diverges. scripts/sync-vendored.sh picks each source: the
+    # class from the newest submodule release, each .bst from its own journal.
     name: Check Vendored Files Match Pinned Upstream
     runs-on: ubuntu-latest
     steps:
@@ -772,8 +382,6 @@ jobs:
         run: scripts/sync-vendored.sh --check
 
       - name: Assert the drift guard can still fail
-        # The step above only ever exercises the passing branch, so on its own it
-        # cannot distinguish a working guard from one that has been disabled.
-        # This mutates a disposable copy of the inputs nine ways and requires
-        # each to be rejected with a diagnostic naming the reason.
+        # The step above exercises only the passing branch. This mutates a disposable
+        # copy of the inputs seven ways and requires each to be rejected by name.
         run: scripts/selftest-sync-vendored.sh

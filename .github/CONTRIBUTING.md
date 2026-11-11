@@ -49,12 +49,11 @@ Pre-commit hooks run automatically before each commit to catch issues early.
 
 **What gets checked**:
 
-- ✅ Template structure validation (`jtex check`)
-- ✅ Sample PDF compilation
-- ✅ File existence verification
-- ✅ Thumbnail presence
-- ✅ ASCII-only source files (no unicode/smart quotes)
-- ✅ Whitespace/line ending fixes
+- Template structure validation (`jtex check`, which also requires every file
+  in `template.yml` and the thumbnail to exist)
+- Sample PDF compilation
+- ASCII-only source files (no unicode/smart quotes)
+- Whitespace/line ending fixes
 
 **Manual commands**:
 
@@ -68,20 +67,17 @@ pre-commit run jtex-autofix --hook-stage manual
 
 ### Continuous Integration
 
-GitHub Actions run automatically on every push and pull request. **CI is
-TeX-free**: it validates that the template *renders* valid LaTeX (which needs no
-TeX toolchain). PDF *compilation*, which needs a full TeX install plus the
-packages in `template.yml` `packages:`, is validated locally by the pre-commit
-`build-sample-pdf` hook, where the author already has TeX. This keeps CI fast and
-avoids pinning a heavy TeX distribution in the workflow.
+GitHub Actions run on every push and pull request, and weekly, because CI
+installs the latest `mystmd` and the plugins in `plugins/` depend on its
+internals.
 
 | Job                       | Purpose                                                          |
 | ------------------------- | ---------------------------------------------------------------- |
-| **validate-template**     | Validates `template.yml`, checks files exist, verifies thumbnail |
-| **render-samples**        | Renders the sample and supplement to LaTeX via `format: tex` (no TeX) |
-| **test-template-options** | Renders `draft`/`seceqn`/`linenumbers`/`supplement` to LaTeX (no TeX) |
-| **test-journal-options**  | Renders `preprint`/`qe`/`ecta`/`te` and asserts the class option and `\bibliographystyle` |
-| **check-ascii**           | Ensures no unicode in source files                               |
+| **validate-template**     | Runs `jtex check` (listed files and thumbnail exist) and asserts every declared package is loaded |
+| **check-escaping**        | Runs `scripts/check-escaping.sh` and its self-test               |
+| **build-pdf**             | Compiles every sample export with TeX via `scripts/build-samples.sh`, gates the logs, diffs the PDF text against the committed artifacts, and runs `scripts/check-plugins.sh --pdf` |
+| **check-ascii**           | Runs the pre-commit `check-ascii` hook                           |
+| **test-options**          | Renders each boolean option, `extra_packages`/`open_access`, and every journal, preprint, and supplement leg to LaTeX, asserting the class options and `\bibliographystyle` |
 | **check-upstream-drift**  | Runs `scripts/sync-vendored.sh --check`; fails if a vendored root file diverges from the pinned `original/*` submodules. Then runs `scripts/selftest-sync-vendored.sh`, which mutates a disposable copy nine ways and requires the guard to reject each one, so the job cannot pass merely because the guard stopped working |
 
 View results: [Actions tab](../../actions)
@@ -106,8 +102,8 @@ Run specific validation:
 # Validate template structure
 npx jtex check
 
-# Check for unicode/smart quotes
-grep -P "[^\x00-\x7F]" sample/*.md
+# Check for unicode/smart quotes (the same hook CI runs)
+pre-commit run check-ascii --all-files
 ```
 
 ## Upstream Synchronization
@@ -240,10 +236,11 @@ Defines pre-commit hooks. Each hook includes:
 
 ### `.github/workflows/ci.yml`
 
-Main CI workflow (TeX-free). Tests:
+Main CI workflow. Tests:
 - Template validation (`jtex check`)
-- LaTeX rendering of the sample and supplement (`format: tex`, no compile)
-- LaTeX rendering of each option (`draft`, `seceqn`, `linenumbers`, `supplement`)
+- PDF compilation of every sample export, with log gates and a text diff
+- The plugins, against their compiled fixture
+- LaTeX rendering of each option, journal, preprint, and supplement leg
 - ASCII compliance
 - Vendored-file drift against the pinned submodule
 
@@ -259,7 +256,7 @@ Automated upstream synchronization:
 ### Common Issues
 
 **LaTeX compilation fails**:
-- Check for unicode/smart quotes: `grep -P "[^\x00-\x7F]" sample/*.md`
+- Check for unicode/smart quotes: `pre-commit run check-ascii --all-files`
 - Verify all `\begin{}` have matching `\end{}`
 - Ensure bibliography file exists and is valid
 

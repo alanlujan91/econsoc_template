@@ -1,28 +1,6 @@
-# Upstream Synchronization Workflow
-#
-# Automatically checks for updates from the three official Econometric Society
-# LaTeX templates and creates a pull request when any of them moves.
-#
-# Schedule: Every Monday at 9 AM UTC
-# Manual trigger: Actions tab -> Run workflow
-#
-# Note on triggering: GitHub cannot fire a workflow here when an upstream repo
-# is pushed to, because those repos are owned by vtex-soft and send us no
-# events. Polling on a schedule is the only option. The complementary guard is
-# the check-upstream-drift job in ci.yml, which runs on every push and pull
-# request and fails if a submodule pointer moved without the vendored root
-# files being re-synced.
-#
-# Process:
-# 1. Fetch each submodule and check whether its default branch has moved
-# 2. Re-vendor the root files via scripts/sync-vendored.sh
-# 3. Create one PR covering every submodule that moved
-# 4. Label as 'dependencies' and 'automated'
-#
-# Upstream:
-#   https://github.com/vtex-soft/texsupport.econometricsociety-ecta
-#   https://github.com/vtex-soft/texsupport.econometricsociety-qe
-#   https://github.com/vtex-soft/texsupport.econometricsociety-te
+# Weekly or by hand: when an upstream template (.gitmodules) moves, re-vendor the root files with
+# scripts/sync-vendored.sh and open one labelled PR. Upstream sends no events, so polling is the
+# only trigger; ci.yml's check-upstream-drift guards every push.
 
 name: Sync Upstream Template Files
 
@@ -94,10 +72,8 @@ jobs:
           sync_log=$(scripts/sync-vendored.sh)
           printf '%s\n' "$sync_log"
 
-          # Verify here, in this job. A pull request opened with GITHUB_TOKEN
-          # does NOT trigger workflow runs, so check-upstream-drift never runs on
-          # the PR this job creates: if this step does not check its own output,
-          # nothing does before a human merges it.
+          # A PR opened with GITHUB_TOKEN triggers no workflow, so check-upstream-drift
+          # never runs on it: this step checks its own output before a human merges.
           scripts/sync-vendored.sh --check
 
           CLASS_VERSION=$(sed -n '/ProvidesClass{econsocart}/{
