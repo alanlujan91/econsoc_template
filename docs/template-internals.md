@@ -29,7 +29,7 @@ caption, so under the float package the block renders with no label at all.
 
 `scripts/sync-vendored.sh --check` asserts the root class and `.bst` copies are
 byte-identical to the pinned submodules, and `selftest-sync-vendored.sh` mutates
-the inputs nine ways to prove the guard can still fail. That design admits no local
+the inputs seven ways to prove the guard can still fail. That design admits no local
 patch: modifying `econsocart.cls` makes CI fail rather than tracking the change.
 
 If a patch ever becomes necessary, the guard has to change with it, to re-deriving
@@ -106,24 +106,26 @@ running head that is too long is visibly wrong and gets fixed; an empty one is n
 been checked against the unescaped template: all six assertions fail on it. The same
 job asserts a page inheriting project frontmatter still renders.
 
-## Dropped proof kinds (upstream, unfixed)
+## Dropped proof kinds
 
 Released `myst-to-tex` maps 11 of the 15 `PROOF_KINDS`. `algorithm`, `assumption`,
-`criterion` and `property` match no case, hit `default`, and are omitted from the `.tex`
+`criterion`, and `property` match no case, hit `default`, and are omitted from the `.tex`
 along with their `\label`, so cross-references to them render `??`. The build says
-`Unhandled LaTeX proof environment` and exits 0.
-
-Upstream [issue 3030](https://github.com/jupyter-book/mystmd/issues/3030) and
+`Unhandled LaTeX proof environment` and exits 0. Upstream
+[issue 3030](https://github.com/jupyter-book/mystmd/issues/3030) and
 [PR 3031](https://github.com/jupyter-book/mystmd/pull/3031), open since 2026-08-19.
-`sample/exports/` is built with stock mystmd, so the article PDFs omit the three
-blocks `sample/article.md` declares, and that section says so in its own prose.
-Committed artifacts are always built from a release: anything produced by a patched
-toolchain is transient, since no one else can reproduce it.
+
+`plugins/proof-kinds.mjs` restores all four kinds in a paper that lists it
+([plugins/README.md](../plugins/README.md)), and `scripts/check-plugins.sh` tests it.
+The sample does not list the plugins, so `sample/exports/` is still built without it:
+the article PDFs omit the `assumption` and `algorithm` blocks `sample/article.md`
+declares, and that section says so in its own prose. `scripts/build-samples.sh`
+asserts both kinds stay absent and fails once one reaches the `.tex`.
 
 The `\newtheorem{assumption}` and `\newtheorem{algorithm}` definitions in
-`template.tex` are correct and take effect as soon as the writer emits the
-environments. Once #3031 is released, rebuild `sample/exports/` and drop the note from
-`sample/article.md`.
+`template.tex` take effect as soon as the writer emits the environments. Once #3031
+is released, rebuild `sample/exports/`, drop the note from `sample/article.md`, and
+delete the plugin.
 
 ## Packages
 
@@ -174,8 +176,9 @@ only in the appendix reaches the `.tex` while its entry never reaches the `.bib`
 leaving an undefined citation. Open the appendix in the document body with raw
 LaTeX instead, per the README.
 
-Nothing checks this automatically. Verify by grepping the emitted `main.bib` for
-every key cited in the emitted `.tex`.
+`scripts/build-samples.sh` catches the missing entry by comparing, as sets, the keys
+cited in each emitted `.tex` with the entries of the `main.bib` in the same export
+directory.
 
 ## Bibliography styles
 
@@ -188,18 +191,34 @@ deleted it on 2026-03-06 (commit 959c321) and added `econsoc.bst` in the same co
 
 ## What build-samples.sh guards, and why each check exists
 
-Each of these was a real shipped defect. They live here rather than as comment
-blocks in the script, per the three-line cap.
+Each check answers a defect that once reached a built PDF at exit 0. The rationale
+is kept here because a comment block in the script is capped at three lines.
 
 **A missing dependency must fail, not skip.** The bibliography check is the only
-thing that catches a dead bibliography, and it guards `ecta` and `te`, which
-nothing else compiles. Without `poppler-utils` it would quietly do nothing, and a
-gate that degrades to nothing is indistinguishable from a gate that passed.
+thing that catches a dead bibliography. Without `poppler-utils` it would do nothing,
+and a gate that degrades to nothing looks the same as a gate that passed.
 
-**Exports are cleared first.** `myst` does not overwrite an export file that
-already exists, so a stale artifact survives a rebuild and satisfies every
-assertion below it. That is how the vendored copies once rotted a full class
-release behind.
+**The bibliography is read from the PDF.** A missing or unreadable `.bst` produces
+no error anywhere: `myst` exits 0, the LaTeX logs stay clean, and no `.blg` survives
+to grep, because the failure happens in BibTeX. The PDF comes out with its bibliography
+absent. The script therefore counts `Aumann` in the PDF text, a name that appears in
+`references.bib` and nowhere in the sample prose, so only a resolved citation prints
+it.
+
+**The emitted `\bibliographystyle` is checked against upstream.** A wrong but valid
+`.bst` passes every content check. Econometrica's `econsoc.bst` fed to a Theoretical
+Economics document yields a full bibliography, a clean log and a normal-size PDF,
+typeset in the wrong journal's style. Per-journal style selection exists to prevent
+exactly that, so each export's style is compared with what its journal's own upstream
+template prescribes (`journal_bst` in `scripts/lib-econsoc.sh`).
+
+**Exports are cleared first, then counted.** `myst` does not overwrite an export file
+that already exists, so a stale artifact survives a rebuild and satisfies every
+assertion below it; the vendored copies once fell a full class release behind this
+way. With no TeX toolchain `myst` also exits 0 and produces nothing, while the
+previous PDFs would pass every assertion. For both reasons the script deletes
+`sample/exports/` before the build and requires as many PDFs, and as many `.tex`
+files, as the sources declare exports. CI job `build-pdf` runs this script.
 
 **The log regex matches the condition, never the decoration.** MyST runs xelatex
 through latexmk with `-file-line-error`, which rewrites `! message` into
@@ -210,7 +229,7 @@ An earlier `^! ` version passed a build whose log held
 
 **Cited keys are compared against the emitted `.bib` as sets.** MyST harvests the
 bibliography from the *rendered* document, so a key reachable only from unrendered
-content lands in the `.tex` and never in the `.bib`. BibTeX leaves it undefined,
+content appears in the `.tex` and never in the `.bib`. BibTeX leaves it undefined,
 natbib logs a warning rather than an error, and the PDF ships a visible `?`.
 Counting entries cannot catch this, because the other citations still resolve and
 keep any threshold satisfied.
@@ -225,8 +244,23 @@ frontmatter.** `heading_1`/`2`/`3` is ignored there. Getting it wrong fails
 silently: headings stay numbered so the document looks right, while every
 reference degrades to the heading title.
 
+**Declared proof kinds reach the `.tex`, and dropped ones stay out.** Rendering
+without error says nothing about content, because `myst-to-tex` drops the proof kinds
+it cannot map and still exits 0. Every emitted `.tex` must hold the kinds the samples
+declare and released `myst-to-tex` maps (`theorem`, `proposition`, `lemma`,
+`definition`, `remark`, `axiom`, `example`), and must lack `assumption` and
+`algorithm` (see "Dropped proof kinds" above). When either appears, mystmd#3031 has
+been released: rebuild `sample/exports/` and drop the note in `sample/article.md`.
+
+**No `\caption*` reaches the `.tex`.** A `---` attribution line in a blockquote makes
+MyST wrap the quote in a figure with `\caption*`. econsocart ignores the star and
+typesets "FIGURE 0." into the paper, with exit 0 and a clean log. Writing the
+attribution with `--` keeps it inside the quote.
+
 **An unresolved reference prints a literal `??`.** No LaTeX event occurs, so no
 log gate can see it. A numbered `[Sec %s](#label)` link does this in every
 single-article export ([mystmd#3035](https://github.com/jupyter-book/mystmd/pull/3035)),
 and a `\ref` to a dropped `prf:algorithm` block does it too, so the artifact check
-is the only one that covers both.
+is the only one that covers both. `plugins/xref.mjs` repairs the first cause and
+`plugins/proof-kinds.mjs` the second, in a paper that lists them
+([plugins/README.md](../plugins/README.md)).

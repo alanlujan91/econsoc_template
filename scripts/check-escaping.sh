@@ -1,29 +1,7 @@
 #!/usr/bin/env bash
-#
-# Assert that frontmatter reaching jtex as a raw string is escaped, that math in
-# a title is not, and that absent optional fields emit no empty macros.
-#
-# Three failures motivated this, all of which produced a PDF and exited 0:
-#
-#   1. An unescaped `&` was DELETED from the output. A keyword "K&W risk"
-#      rendered "KW risk" and a JEL code "D&14" rendered "D14". Nothing in the
-#      LaTeX log said so, because `&` outside a tabular is an alignment error
-#      that latexmk's force mode pushes through.
-#   2. An unescaped `%` opened a comment that swallowed the rest of the line, so
-#      a title containing "50%" produced a PDF whose title was absent entirely.
-#   3. Guarding those fields with a filter chain then introduced the opposite
-#      bug: `string` calls .toString() and THROWS on an absent key, which aborts
-#      the export before LaTeX runs while myst still exits 0 and leaves the
-#      previous PDF in place. A stale artifact is the only symptom.
-#
-# --self-test seeds four defects, one per assertion class, and requires each to
-# be caught. Every one of these was verified by hand in a scratch directory
-# during the session that found it; this records them so a future edit that
-# quietly disables one is caught. Assertions are checked in BOTH directions:
-# a presence assertion must not be satisfiable by a comment, and an absence
-# assertion must not fire on a comment that merely mentions the sentinel.
-#
-#   scripts/check-escaping.sh [--self-test]
+# Assert the template escapes raw frontmatter but leaves title math alone, and that an absent
+# optional field drops its macro. --self-test seeds one defect per assertion class and requires each caught.
+# Rationale per assertion: docs/template-internals.md, "Escaping LaTeX specials".
 
 set -euo pipefail
 
@@ -31,13 +9,13 @@ repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
+# shellcheck source=scripts/lib-econsoc.sh
+. "$repo/scripts/lib-econsoc.sh"
+
 command -v myst >/dev/null 2>&1 || myst() { "$repo/.venv/bin/myst" "$@"; }
 
-die() { echo "FAIL: $*" >&2; exit 1; }
-
-# Comment lines must be stripped before any assertion. The template emits
-# upstream's example line `% [add1]{\fnms{}~\snm{}\ead[label=e?]{}}`, which
-# matches every empty-macro pattern below and would fail every healthy build.
+# Strip comment lines first: upstream's example `% [add1]{\fnms{}~\snm{}\ead[label=e?]{}}` matches
+# every empty-macro pattern, and a presence assertion must not be satisfiable by a comment.
 body() { grep -v '^[[:space:]]*%' "$1"; }
 
 # $1 = template dir, $2 = output dir
@@ -118,85 +96,72 @@ EMPTY=( '\\ead\[[^]]*\]{}' '\\orgdiv{}' '\\kwd{}' '\\snm{}' )
 # Returns 0 when every assertion holds. Never exits, so --self-test can call it.
 run_checks() {
     local tpl="$1" quiet="${2:-}" tex minimal rc=0 pat
+    say() { [ -n "$quiet" ] || echo "  $*"; }
+
     tex=$(build_specials "$tpl" "$work/specials.$RANDOM")
-    [ -s "$tex" ] || { [ -n "$quiet" ] || echo "  no .tex produced"; return 1; }
+    [ -s "$tex" ] || { say "no .tex produced"; return 1; }
 
     for pat in "${PRESENCE[@]}"; do
-        body "$tex" | grep -q "$pat" || { [ -n "$quiet" ] || echo "  unescaped: $pat"; rc=1; }
+        body "$tex" | grep -q "$pat" || { say "unescaped: $pat"; rc=1; }
     done
     # Math must survive: escaping `_` here would turn $x_1$ into $x\_1$.
-    body "$tex" | grep -q '\$x_1\$' || { [ -n "$quiet" ] || echo "  math over-escaped"; rc=1; }
+    body "$tex" | grep -qF "\$x_1\$" || { say "math over-escaped"; rc=1; }
     # Content myst renders itself arrives escaped; escaping again emits 50\\%.
-    if body "$tex" | grep -q '50\\\\%'; then
-        [ -n "$quiet" ] || echo "  double-escaped"; rc=1
-    fi
+    if body "$tex" | grep -q '50\\\\%'; then say "double-escaped"; rc=1; fi
 
     minimal=$(build_minimal "$tpl" "$work/minimal.$RANDOM")
-    if grep -qE 'Template render error|TypeError' "$(dirname "$(dirname "$minimal")")/render.log" 2>/dev/null; then
-        [ -n "$quiet" ] || echo "  render aborted on inherited frontmatter"; rc=1
+    if render_aborted "$(dirname "$(dirname "$minimal")")/render.log"; then
+        say "render aborted on inherited frontmatter"; rc=1
     fi
-    [ -s "$minimal" ] || { [ -n "$quiet" ] || echo "  minimal fixture produced no .tex"; return 1; }
+    [ -s "$minimal" ] || { say "minimal fixture produced no .tex"; return 1; }
     for pat in "${EMPTY[@]}"; do
-        if body "$minimal" | grep -q "$pat"; then
-            [ -n "$quiet" ] || echo "  empty macro emitted: $pat"; rc=1
-        fi
+        if body "$minimal" | grep -q "$pat"; then say "empty macro emitted: $pat"; rc=1; fi
     done
-    # An empty running head is a blank head on every odd page, shipped silently.
+    # An empty running head is a blank head on every odd page, at exit 0.
     body "$minimal" | grep -q '^\\runtitle{Page Heading}' \
-        || { [ -n "$quiet" ] || echo "  running head did not fall back to the title"; rc=1; }
+        || { say "running head did not fall back to the title"; rc=1; }
     return $rc
 }
 
-# Copy the template, apply a sed mutation, return the new dir.
+# Copy template.yml and every file its files: list names, sed-mutate template.tex, echo the new dir.
 mutate() {
-    # Separate statements: bash expands every word of a multi-assignment `local`
-    # before applying any of them, so `dir` could not reference `name` inline.
-    local name="$1"
-    local expr="$2"
-    local dir="$work/tpl-$name"
+    local dir="$work/tpl-$1" f
     mkdir -p "$dir"
-    local f
-    for f in template.tex template.yml econsocart.cls econsocart.cfg qe.bst te.bst econsoc.bst; do
-        cp "$repo/$f" "$dir/$f"
-    done
-    sed -i "$expr" "$dir/template.tex"
+    cp "$repo/template.yml" "$dir/" || return 1
+    for f in "${SHIPPED[@]}"; do cp "$repo/$f" "$dir/$f" || return 1; done
+    sed -i "$2" "$dir/template.tex" || return 1
     echo "$dir"
 }
 
 if [ "${1:-}" = "--self-test" ]; then
     echo "Self-test: each seeded defect must be CAUGHT."
-    fails=0
+    fails=0 seeded=0
+    mapfile -t SHIPPED < <(template_files "$repo/template.yml")
+    [[ " ${SHIPPED[*]} " == *" template.tex "* ]] || die "template.yml files: does not list template.tex"
 
-    # 1. The escaping chain stripped from both macros: every presence assertion
-    #    must fail. Each macro body sits on one line, so this is line-local.
-    d=$(mutate unescaped 's/|replace.*-\]/-]/')
-    if run_checks "$d" quiet; then echo "  NOT CAUGHT: unescaped template"; fails=1
-    else echo "  caught: unescaped template"; fi
+    # seed NAME SED-EXPR: the template mutated by SED-EXPR must fail run_checks
+    seed() {
+        local dir
+        seeded=$((seeded + 1))
+        dir=$(mutate "$seeded" "$2") || die "could not build the mutated template for: $1"
+        if run_checks "$dir" quiet; then echo "  NOT CAUGHT: $1"; fails=1
+        else echo "  caught: $1"; fi
+    }
 
-    # 2. The undefined-key guard reverted. The running-head fallback has to go
-    #    too, or `or doc.title` supplies a string and `string` never sees the
-    #    undefined key: the two fixes overlap, so one alone is not a defect.
-    d=$(mutate noguard "s/|default('')|string|/|string|/g; s/doc.short_title or doc.title/doc.short_title/")
-    if run_checks "$d" quiet; then echo "  NOT CAUGHT: missing default('') guard"; fails=1
-    else echo "  caught: missing default('') guard"; fi
+    # Each macro body is on one line, so stripping the escaping chain is line-local.
+    seed "unescaped template" 's/|replace.*-\]/-]/'
+    # The fallback goes too: `or doc.title` would supply a string and hide the undefined key.
+    seed "missing default('') guard" "s/|default('')|string|/|string|/g; s/doc.short_title or doc.title/doc.short_title/"
+    # An author with no email emits \ead{}, which econsocart prints as a dangling "Name:".
+    seed "empty \\ead emitted" '/\\ead/ { s/\[# if author.email #\]//; s/\[# endif #\]//; }'
+    seed "blank running head" 's/doc.short_title or doc.title/doc.short_title/'
 
-    # 3. The email guard removed: an author with no email emits \ead{}, which
-    #    econsocart prints as a dangling "Name:" in the PDF.
-    d=$(mutate emptyead '/\\ead/ { s/\[# if author.email #\]//; s/\[# endif #\]//; }')
-    if run_checks "$d" quiet; then echo "  NOT CAUGHT: empty \\ead emitted"; fails=1
-    else echo "  caught: empty \\ead emitted"; fi
-
-    # 4. The running-head fallback removed: an inherited page gets a blank head.
-    d=$(mutate blankhead 's/doc.short_title or doc.title/doc.short_title/')
-    if run_checks "$d" quiet; then echo "  NOT CAUGHT: blank running head"; fails=1
-    else echo "  caught: blank running head"; fi
-
-    # The healthy template must still PASS, or the checks are simply broken.
-    if run_checks "$repo"; then echo "  healthy template passes"
-    else echo "  NOT CAUGHT: healthy template FAILS its own checks"; fails=1; fi
+    # The unmutated template must still PASS, or the checks are simply broken.
+    if run_checks "$repo"; then echo "  unmutated template passes"
+    else echo "  NOT CAUGHT: unmutated template FAILS its own checks"; fails=1; fi
 
     [ "$fails" -eq 0 ] || die "self-test incomplete: a seeded defect went undetected"
-    echo "OK: 4 seeded defects caught, healthy template passes"
+    echo "OK: $seeded seeded defects caught, unmutated template passes"
     exit 0
 fi
 

@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
-#
-# Shared helpers for the vendoring and build scripts.
-#
-# journal_bst lives here because both scripts need it, and a second copy would be
-# a second place for the journal-to-style mapping to go wrong. Deriving it from
-# upstream states the mapping in exactly one place; a duplicated derivation would
-# lose that while appearing to keep it.
+# Shared helpers for the vendoring, build and check scripts. A helper two scripts need is defined
+# here once, so a mapping such as journal-to-style has one place to go wrong.
 
 die() {
     echo "ERROR: $*" >&2
@@ -31,11 +26,21 @@ journal_bst() {
     printf '%s' "$style"
 }
 
+# Files a template.yml's files: list names, one per line (jtex copies exactly these)
+template_files() {
+    sed -n '/^files:/,/^[a-z]/{s/^  *- *\([^ ]*\) *$/\1/p;}' "$1"
+}
+
 # Keys cited in a .tex, sorted and unique: every \cite form, starred or with [pre][post]
 # arguments (`\citep[e.g.][p. 2]{a, b}`), split at commas. Tested by scripts/check-plugins.sh.
 cited_keys() {
     { grep -oE '\\cite[a-zA-Z]*\*?(\[[^]]*\])*\{[^}]*\}' "$1" || true; } |
         sed 's/.*{//; s/}//' | tr ',' '\n' | tr -d ' ' | { grep -v '^$' || true; } | sort -u
+}
+
+# Succeed when a myst build log shows the jtex render aborted (myst still exits 0)
+render_aborted() {
+    grep -qE 'Template render error|TypeError' "$1"
 }
 
 # Entry keys of a .bib, in file order
