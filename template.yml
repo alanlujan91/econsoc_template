@@ -56,10 +56,8 @@ parts:
   - id: acknowledgement
     required: false
     description: Acknowledgements and funding information
-# No `appendix` part: MyST excludes frontmatter parts from the rendered document,
-# so the bibliography harvest misses any reference the appendix alone cites.
-# Open the appendix in the document body with raw LaTeX and splice the file in
-# with `include` instead. See README "Appendices".
+# No `appendix` part: MyST leaves frontmatter parts out of the bibliography harvest. Open the
+# appendix in the document body with raw LaTeX and `include` it instead. README "Appendices".
 options:
   - type: choice
     id: journal

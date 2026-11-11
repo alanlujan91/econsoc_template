@@ -11,53 +11,20 @@
 % verbatim from the official templates: Copyright (c) 2022 UAB "VTeX", licensed
 % under the LaTeX Project Public License v1.3c or later. Official distribution:
 % https://www.e-publications.org/es/support/
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% In this template, the places where you   %%
-%% need to fill in your information are     %%
-%% indicated by '???'.                      %%
-%%                                          %%
-%% Please do not use \input{...} to include %%
-%% other tex files. Submit your LaTeX       %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% use option [draft] for initial submission
-%            [final] for the prepublication
-%% `final` is omitted when `linenumbers` is requested alone: class options execute
-%% in declaration order, and both draft and final overwrite the line-number flag.
-%% See docs/template-internals.md "Class options".
+% use option [draft] for initial submission, [final] for the prepublication
+%% `final` is omitted when `linenumbers` is requested alone: draft and final both
+%% overwrite the line-number flag. See docs/template-internals.md "Class options".
 \documentclass[[-options.journal-],nameyear[# if options.draft #],draft[# elif options.linenumbers #][# else #],final[# endif #][# if options.supplement #],supplement[# endif #][# if options.seceqn #],seceqn[# endif #][# if options.linenumbers #],linenumbers[# endif #][# if doc.open_access #],openaccess[# endif #]]{econsocart}
-%
-%\usepackage{}
 \RequirePackage[colorlinks,citecolor=blue,linkcolor=blue,urlcolor=blue,pagebackref]{hyperref}
 
 \startlocaldefs
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%                                          %%
-%% For Assumption, Axiom, Claim, Corollary, %%
-%% Lemma, Theorem, Proposition, Hypothezis, %%
-%% Fact                                     %%
-%% use \theoremstyle{plain}                 %%
-%%                                          %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% claim and fact are not MyST proof kinds; defined for raw-LaTeX blocks.
+%% MyST defines the kinds it renders. See README "Proof directives".
 \theoremstyle{plain}
-% \newtheorem{axiom}{Axiom}
-% \newtheorem{theorem}{Theorem}
 \newtheorem{claim}{Claim}
-% \newtheorem{lemma}[theorem]{Lemma}
 \newtheorem*{fact}{Fact}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%                                          %%
-%% For Definition, Example, Remark,         %%
-%% Notation, Property                       %%
-%% use \theoremstyle{definition}            %%
-%%                                          %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% \theoremstyle{definition}
-% \newtheorem{definition}{Definition}
-% \newtheorem*{example}{Example}
-% \newtheorem{remark}{Remark}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Please put your definitions here:        %%
@@ -103,28 +70,19 @@
 %% globally. \counterwithout is a LaTeX2e kernel command (2023-06-01 or newer),
 %% not etoolbox. See docs/template-internals.md "Theorem counters".
 \makeatletter
-\@ifundefined{c@theorem}{}{%
-  \counterwithout{theorem}{section}}
-\@ifundefined{c@definition}{}{%
-  \counterwithout{definition}{section}}
-\@ifundefined{c@example}{}{%
-  \counterwithout{example}{section}}
-\@ifundefined{c@remark}{}{%
-  \counterwithout{remark}{section}}
-\@ifundefined{c@axiom}{}{%
-  \counterwithout{axiom}{section}}
-\@ifundefined{c@proposition}{}{%
-  \counterwithout{proposition}{section}}
+%% \es@detach{counter}{parent}: renumber a MyST-defined counter without its parent
+\def\es@detach#1#2{\@ifundefined{c@#1}{}{\counterwithout{#1}{#2}}}
+\es@detach{theorem}{section}
+\es@detach{definition}{section}
+\es@detach{example}{section}
+\es@detach{remark}{section}
+\es@detach{axiom}{section}
+\es@detach{proposition}{section}
+\es@detach{conjecture}{section}
+\es@detach{observation}{section}
 %% corollary is the exception: MyST parents it to theorem, not section, so detach
 %% it from theorem. Sweeping it with {section} renumbers every corollary to 1.
-%% See docs/template-internals.md "Theorem counters".
-\@ifundefined{c@corollary}{}{%
-  \counterwithout{corollary}{theorem}}
-\@ifundefined{c@conjecture}{}{%
-  \counterwithout{conjecture}{section}}
-\@ifundefined{c@observation}{}{%
-  \counterwithout{observation}{section}}
-
+\es@detach{corollary}{theorem}
 \makeatother
 
 %% The four prf kinds released myst-to-tex drops (upstream issue 3030), which
@@ -318,7 +276,7 @@
 %% template.yml. `preprint` does not change it, and supplements match the article
 %% despite upstream naming ecta-fullname. docs/template-internals.md.
 [# if doc.bibliography #]
-\bibliographystyle{[# if options.journal == "ecta" #]econsoc[# elif options.journal == "te" #]te[# else #]qe[# endif #]} % Style BST file
+\bibliographystyle{[# if options.journal == "ecta" #]econsoc[# else #][-options.journal-][# endif #]} % Style BST file
 \bibliography{[-doc.bibliography-]}  % Bibliography file (usually '*.bib')
 [# else #]
 %% NOTE: User has not specified a bibliography file in frontmatter.
