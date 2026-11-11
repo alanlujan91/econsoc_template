@@ -103,12 +103,10 @@ for tex in "${texs[@]}"; do
         continue
     fi
 
-    # `|| true` is load-bearing: grep exits 1 on no match, legitimate here, and
-    # under `set -euo pipefail` that would kill the script at the assignment with
-    # no message. See docs/template-internals.md.
-    cited=$({ grep -oE '\\cite[a-zA-Z]*\{[^}]*\}' "$tex" || true; } \
-            | sed 's/.*{//; s/}//' | tr ',' '\n' | tr -d ' ' | { grep -v '^$' || true; } | sort -u)
-    present=$({ grep -oE '^@[a-zA-Z]+\{[^,]+' "$bib" || true; } | sed 's/.*{//' | sort -u)
+    # Both helpers end each grep in `|| true`, since grep exits 1 on no match and
+    # pipefail would then end the script silently. See docs/template-internals.md.
+    cited=$(cited_keys "$tex")
+    present=$(bib_keys "$bib" | sort -u)
 
     if [ -z "$cited" ]; then
         continue
