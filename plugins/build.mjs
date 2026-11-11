@@ -1,4 +1,4 @@
-// Builds proof-kinds.mjs: src/proof-kinds.mjs plus myst-to-tex 1.0.48 with the kindToEnvironment
+// Builds proof-kinds.mjs: src/proof-kinds.mjs plus the myst-to-tex package.json pins, with the kindToEnvironment
 // hunk of jupyter-book/mystmd PR 3031 applied. Once a mystmd release ships that PR, delete the
 // plugin, this script and package.json; the four kinds then export natively.
 //
@@ -7,17 +7,20 @@
 // discarded, and template.tex defines the four environments.
 
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
-const BASE = '1.0.48';
+const here = (file) => fileURLToPath(new URL(file, import.meta.url));
+const readJson = async (file) => JSON.parse(await readFile(here(file), 'utf8'));
+
+// The patch targets the exact version package.json pins
+const BASE = (await readJson('./package.json')).dependencies['myst-to-tex'];
 const ANCHOR = "        case 'corollary':\n            return 'corollary';\n";
 const ADDED = ['algorithm', 'assumption', 'criterion', 'property']
   .map((kind) => `        case '${kind}':\n            return '${kind}';\n`)
   .join('');
 
-const { version } = JSON.parse(
-  await readFile(new URL('./node_modules/myst-to-tex/package.json', import.meta.url), 'utf8'),
-);
+const { version } = await readJson('./node_modules/myst-to-tex/package.json');
 if (version !== BASE) throw new Error(`myst-to-tex ${version} installed, the patch targets ${BASE}`);
 
 const pr3031 = {
@@ -34,14 +37,14 @@ const pr3031 = {
 
 // `node build.mjs --check` builds in memory and fails if the committed bundle differs from it.
 const check = process.argv.includes('--check');
-const outfile = new URL('./proof-kinds.mjs', import.meta.url).pathname;
+const outfile = here('./proof-kinds.mjs');
 
 const result = await build({
-  entryPoints: [new URL('./src/proof-kinds.mjs', import.meta.url).pathname],
+  entryPoints: [here('./src/proof-kinds.mjs')],
   outfile,
   write: !check,
   // The bundle names each CommonJS module by its path from here, so fix it for any cwd
-  absWorkingDir: new URL('.', import.meta.url).pathname,
+  absWorkingDir: here('.'),
   bundle: true,
   format: 'esm',
   platform: 'node',

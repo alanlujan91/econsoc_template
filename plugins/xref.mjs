@@ -70,21 +70,29 @@ const fill = ([before, after], middle) =>
 
 const alph = (n) => String.fromCharCode(64 + n);
 
-const appendixNumbers = {
+// True when the link shows what MyST writes for its kind, rather than words of the author's own
+const isDefault = (node, text) =>
+  node.enumerator != null && text === node.template?.replaceAll('%s', node.enumerator);
+
+// The number LaTeX prints for an appendix heading of any page, or undefined
+function appendixNumber(label) {
+  for (const numbers of appendixByFile.values()) if (numbers.has(label)) return numbers.get(label);
+  return undefined;
+}
+
+const xrefSource = {
   name: 'econsoc-xref-source',
   doc: 'Records what the author wrote in each link, and the number LaTeX prints for each appendix heading',
   stage: 'document',
   plugin: () => (tree, vfile) => {
-    // Before resolution fills an empty link with its target's name, so a link worded as its
-    // section's title can be told from a bare one
-    walk(tree, (node) => {
-      if (node.type === 'link' || node.type === 'crossReference') node.authoredText = plainText(node);
-    });
-    const numbers = new Map();
     const depths = [];
     walk(tree, (node) => {
+      // Before resolution fills an empty link with its target's name, so a link worded as its
+      // section's title can be told from a bare one
+      if (node.type === 'link' || node.type === 'crossReference') node.authoredText = plainText(node);
       if (node.type === 'heading') depths.push(node.depth);
     });
+    const numbers = new Map();
     const top = Math.min(...depths);
     const counts = [];
     let inside = false;
@@ -109,13 +117,11 @@ const appendixNumbers = {
 
 // LaTeX for a reference into another document: its number as plain text
 function remoteTex(node, text) {
-  const appendix = [...appendixByFile.values()].find((m) => m.has(labelOf(node)))?.get(labelOf(node));
-  const number = appendix ?? node.enumerator;
+  const appendix = appendixNumber(labelOf(node));
   const slot = splitAt(text, node.enumerator);
   if (!slot) return texEscape(text);
-  const isDefault = text === node.template?.replaceAll('%s', node.enumerator);
-  if (appendix && isDefault && node.kind === 'heading') return `Appendix~${texEscape(appendix)}`;
-  return fill(slot, texEscape(number));
+  if (appendix && isDefault(node, text) && node.kind === 'heading') return `Appendix~${texEscape(appendix)}`;
+  return fill(slot, texEscape(appendix ?? node.enumerator));
 }
 
 // LaTeX for a reference within the document, or undefined when myst-to-tex already writes it right
@@ -125,7 +131,7 @@ function localTex(node, text, page) {
   const word = page.appendix.has(label) ? 'Appendix' : 'Section';
   const number = node.enumerator;
   if (number != null && node.template?.includes('%s')) {
-    if (text === node.template.replaceAll('%s', number)) {
+    if (isDefault(node, text)) {
       return node.kind === 'heading' && page.appendix.has(label) ? `Appendix~${ref}` : undefined;
     }
     const slot = splitAt(text, number);
@@ -171,5 +177,5 @@ const crossReferences = {
 
 export default {
   name: 'Econsoc cross-references',
-  transforms: [appendixNumbers, crossReferences],
+  transforms: [xrefSource, crossReferences],
 };

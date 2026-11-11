@@ -114,7 +114,7 @@ committed bundle is stale.
 
 `scripts/check-plugins.sh` builds the fixture project in `tests/plugins/`, an article and
 its supplement with all three plugins loaded, and asserts the emitted LaTeX, `main.bib`
-and site pages. It then rebuilds the fixture without the plugins and requires the same
-assertions to fail. With `--pdf` it compiles the fixtures and reads the PDF text as
-well, checking among other things that each document prints the numbers the other one
-gives it.
+and site pages. It then rebuilds the fixture once without each plugin and requires that
+plugin's own assertions to fail; when they pass, a mystmd release has fixed the bug and
+the check says to delete the plugin. With `--pdf` it also compiles the fixture and reads
+the PDF text, checking that each document prints the numbers the other one gives it.
