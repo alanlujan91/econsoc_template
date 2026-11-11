@@ -1,8 +1,5 @@
 ---
 title: Appendix
-numbering:
-  heading_1: true
-  heading_2: true
 ---
 
 (appA)=

@@ -135,7 +135,7 @@ Configure via `exports` in frontmatter:
 | `linenumbers` | boolean | `false` | Adds line numbers to a non-draft build. `draft` turns them on regardless, so the option only has an observable effect when `draft` is false. It cannot switch them *off* inside a draft: the class has a `nolinenumbers` option that this template never emits. |
 | `extra_packages` | string | (none) | Comma-separated LaTeX packages to load, e.g. `mhchem,cancel` (see [LaTeX Packages](#latex-packages)) |
 
-The `open_access` frontmatter field automatically enables the econsocart `openaccess` class option. It produces no visible change in a PDF you build: the license statement it controls sits inside the copyright block, which the journal adds during production. Measured in both preprint and non-preprint builds.
+The `open_access` frontmatter field automatically enables the econsocart `openaccess` class option. It produces no visible change in a PDF you build: the license statement it controls is part of the copyright block, which the journal adds during production. Measured in both preprint and non-preprint builds.
 
 `corresponding: true` on an author is likewise not rendered. econsocart marks the corresponding author through a `corref` key that only feeds the production-side open-access license line, so this template does not emit it.
 
@@ -214,7 +214,7 @@ Economics and Theoretical Economics ones:
 
 **The JEL block is handled for you.** Under `journal: ecta` the template suppresses
 it even when the document supplies `tags`, because both `ecta_sample.tex` and
-`ecta_template.tex` carry no JEL block while the qe and te equivalents each carry
+`ecta_template.tex` lack a JEL block while the qe and te equivalents each carry
 one. Keep your `tags:` in frontmatter: they still emit for the qe and te exports of
 the same source, which is what makes one document retarget across all three
 journals without hand-editing. The suppression leaves a comment in the emitted
@@ -281,7 +281,7 @@ this table is a convenience, not an authority.
 
 #### Preprint mode
 
-By default (`preprint: true`) the PDF carries **no journal identification**: no "Submitted to ..." banner, no journal running head, and no copyright line. It is safe to post as a working paper without signalling where it was submitted, and it keeps the layout and bibliography style of whichever `journal` you set, so a Theoretical Economics preprint looks like Theoretical Economics.
+By default (`preprint: true`) the PDF omits all **journal identification**: no "Submitted to ..." banner, no journal running head, and no copyright line. It is safe to post as a working paper without signalling where it was submitted, and it keeps the layout and bibliography style of whichever `journal` you set, so a Theoretical Economics preprint looks like Theoretical Economics.
 
 When you submit, turn it off:
 
@@ -367,14 +367,17 @@ This template uses MyST native features wherever possible and falls back to raw 
 >     template: Assumption %s
 > ```
 >
-> The block survives and references read "Assumption 1", but the heading itself
-> still prints "AXIOM 1", because MyST injects `\newtheorem{axiom}{Axiom}`.
+> The block survives and references read "Assumption 1". Because MyST injects
+> `\newtheorem{axiom}{Axiom}`, the heading prints "AXIOM 1" unless the export
+> sets `axiom_as_assumption: true`, which prints it as "ASSUMPTION 1" on the
+> assumption counter.
 >
-> Algorithms have the same workaround with `{prf:observation}` and
-> `"proof:observation": {template: Algorithm %s}`. Measured: the block survives,
-> the reference renders "Algorithm 1", and the heading prints "OBSERVATION 1" for
-> the same reason. Pick whichever mismatch you would rather explain, or write the
-> steps as an ordinary numbered list and lose the caption entirely.
+> Algorithms have the same workaround with `{prf:observation}`,
+> `"proof:observation": {template: Algorithm %s}` and the export option
+> `observation_as_algorithm: true`. Measured (SDP paper, 2026-10-16): with both
+> options set, the headings print "ASSUMPTION 1" and "ALGORITHM 1" and every
+> reference matches. Both options default to false, which leaves a real axiom
+> or observation under its own name.
 
 MyST proof directives that produce correct LaTeX output:
 
@@ -425,14 +428,14 @@ website. The colon form is passed through untouched. The rule generalises: **fen
 for content the website should show** (tables, figures, pseudocode), **colon for
 macros that only steer LaTeX** (environment delimiters, counter redefinitions).
 
-`appendix.md` is then ordinary MyST, with headings at `#` level:
+`appendix.md` is then ordinary MyST, with headings at `#` level. It does not need
+a `numbering` block of its own, because the article's `numbering` governs the spliced
+content. Per-level keys in an included file's frontmatter do not change the output.
+The emitted `.tex` is identical with and without them.
 
 ```markdown
 ---
 title: Appendix
-numbering:
-  heading_1: true
-  heading_2: true
 ---
 
 (appA)=
@@ -491,7 +494,7 @@ Do **not** write a raw `\begin{algorithm}...\caption{}` float. Without the float
 
 ### MyST Limitations and Fidelity to the QE/ECMA Template
 
-Authoring in Markdown means the generated LaTeX is not byte-identical to a hand-written QE `.tex`. The first table below lists differences where the rendered **PDF is still equivalent** to the original; the second lists **genuine limitations** where it is not. Each records the workaround where one exists.
+Authoring in Markdown means the generated LaTeX is not byte-identical to a hand-written QE `.tex`. The first table below lists differences where the rendered **PDF is still equivalent** to the original; the second lists **real limitations** where it is not. Each records the workaround where one exists.
 
 #### Irreducible rendering differences (same PDF, different source)
 
@@ -524,9 +527,9 @@ these two tables are: the upstream single-appendix example (`\section*{Title}`
 plus its accompanying note) has no counterpart here; four sentences from
 upstream's Citation section are absent, covering `\citeauthor`, `\citeyear`, and
 a bracketed-locator `\citet[Theorem 1]{}`; and the Fonts list differs in content,
-upstream showing a genuinely small-capped example where this sample shows roman.
+upstream showing a truly small-capped example where this sample shows roman.
 
-#### Genuine limitations (a QE feature MyST cannot reproduce in the PDF)
+#### Real limitations (a QE feature MyST cannot reproduce in the PDF)
 
 | Feature | Limitation | Workaround |
 | --- | --- | --- |
@@ -619,7 +622,7 @@ Three groups of packages are available in every build:
 2. **Provided by the class and template:** `amssymb, bm, etoolbox, fontenc, textcomp, times, url` (class) and `hyperref` (template). These are declared in `packages:`, so MyST does not re-inject them.
 3. **Loaded by the template** (packages MyST recognizes but does not auto-inject, so raw-LaTeX content that uses them compiles): `booktabs, array, algpseudocode, subcaption, multirow, tabularx, wrapfig, threeparttable, adjustbox, changepage, mhchem, cancel, supertabular, epigraph, cleveref`. Note that `algorithm` is **not** among them, by design: see [Algorithms](#algorithms).
 
-`booktabs` sits in group 3 rather than group 1 because MyST injects it only for tables **it** emits. A document whose tables are raw LaTeX never triggers that, so `\toprule` was an undefined control sequence and the PDF rendered the table with every rule missing, at exit 0. Loading it unconditionally covers both cases. `array` is there for `>{...}` column specifications, which `tabularx` happens to pull in today; the explicit load removes the dependence on that. Note that mystmd's [supported macros](https://mystmd.org/guide/writing-in-latex) do not include the booktabs rules, so they pass through to the PDF but carry no meaning on the website.
+`booktabs` sits in group 3 rather than group 1 because MyST injects it only for tables **it** emits. A document whose tables are raw LaTeX never triggers that, so `\toprule` was an undefined control sequence and the PDF rendered the table with every rule missing, at exit 0. Loading it unconditionally covers both cases. `array` is there for `>{...}` column specifications, which `tabularx` happens to pull in today; the explicit load removes the dependence on that. Note that mystmd's [supported macros](https://mystmd.org/guide/writing-in-latex) do not include the booktabs rules, so they pass through to the PDF and the website ignores them.
 
 Because group 3 is loaded unconditionally, **your TeX installation must contain these packages**. A full TeX Live has them; on a minimal install add them with `tlmgr install <name>`.
 
@@ -667,7 +670,7 @@ myst build your-paper.md --pdf
 
 **LaTeX compilation errors**:
 
-1. **Missing fonts**: The `econsocart` class loads the `times` package (Times Roman via `psnfss`), which ships with every TeX distribution. If it is somehow missing, `tlmgr install psnfss`.
+1. **Missing fonts**: The `econsocart` class loads the `times` package (Times Roman via `psnfss`), which every TeX distribution includes. If it is somehow missing, `tlmgr install psnfss`.
 2. **Missing bibliography**: Ensure `bibliography: file.bib` in frontmatter and the file exists.
 3. **Author format**: Check name structure matches the example above.
 4. **Citations**: Verify all `{cite:}` references have matching BibTeX entries.
@@ -702,7 +705,7 @@ myst build your-paper.md --pdf
 - `original/{ecta,qe,te}/` - Pinned upstream templates (git submodules)
 
 The class and configuration are one shared file across the three journals, so
-they are vendored from whichever submodule ships the newest release; each `.bst`
+they are vendored from whichever submodule has the newest release; each `.bst`
 comes from its own journal. `scripts/sync-vendored.sh` encodes that rule, and the
 `check-upstream-drift` CI job enforces it.
 
