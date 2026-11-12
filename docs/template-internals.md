@@ -47,12 +47,13 @@ the check to accommodate a patch.
 ## Rebuilding the sample exports
 
 `--force` does not regenerate `main.bib` inside `sample/exports/*_pdf_tex/`, and the
-cache is the project-root `_build/`, not `sample/_build/`. A `.bib` edit therefore
-does not reach the build, silently, at exit 0. Remove all three:
+sample's cache is `sample/_build/` (the sample is its own project, `sample/myst.yml`).
+A `.bib` edit therefore does not reach the build, silently, at exit 0. Remove all
+three:
 
 ```bash
-rm -rf _build sample/exports/*_pdf_tex sample/exports/*_pdf_logs
-myst build --pdf --force
+rm -rf sample/_build sample/exports/*_pdf_tex sample/exports/*_pdf_logs
+scripts/build-samples.sh
 ```
 
 Verify by grepping the emitted `main.bib` for the field you changed. A fresh mtime
@@ -125,17 +126,26 @@ along with their `\label`, so cross-references to them render `??`. The build sa
 [PR 3031](https://github.com/jupyter-book/mystmd/pull/3031), open since 2026-08-19.
 
 `plugins/econsoc.mjs` restores all four kinds in a paper that lists it
-([plugins/README.md](../plugins/README.md#proofs-and-exercises)), and
-`scripts/check-plugins.sh` tests it. The sample does not list the plugin, so
-`sample/exports/` is still built without it:
-the article PDFs omit the `assumption` and `algorithm` blocks `sample/article.md`
-declares, and that section says so in its own prose. `scripts/build-samples.sh`
-asserts both kinds stay absent and fails once one reaches the `.tex`.
+([Plugin repairs](plugin-repairs.md#proofs-and-exercises)), and
+`scripts/check-plugins.sh` tests it.
 
 The `\newtheorem{assumption}` and `\newtheorem{algorithm}` definitions in
-`template.tex` take effect as soon as the writer emits the environments. Once #3031
-is released, rebuild `sample/exports/`, drop the note from `sample/article.md`, and
-delete the plugin's `proof-kinds` repair.
+`template.tex` take effect as soon as the writer emits the environments. Every proof
+goes through the plugin's `proofs` repair, for its title as well as its kind, so a
+release of #3031 alone does not retire that repair.
+
+## Theorem definitions with and without the plugin
+
+The plugin's `theorem-definitions` repair defines the environments a paper uses, as
+the upstream samples define theirs, in the template part `econsoc_localdefs`; the
+part opens `\startlocaldefs`. Without the plugin, `template.tex` defines every kind
+itself. It renumbers MyST's section-based counters, sets Definition, Example and
+Remark upright, and adds the kinds MyST never emits. Both paths must print the same
+document: `scripts/check-plugins.sh --pdf` compiles the fixture both ways and
+requires identical PDF text. The `axiom_as_assumption` and `observation_as_algorithm`
+options apply on both paths, each defining its target when the plugin left it
+undefined, and `scripts/check-theorem-aliases.sh` tests them with and without the
+plugin.
 
 The plugin also writes environments released MyST never emits, each defined in
 `template.tex`: `claim` (numbered) and `fact` (starred) for `{prf:claim}` and
@@ -146,7 +156,7 @@ passes MyST's own title, "Solution to Exercise~\ref{...}".
 ## Packages
 
 The `template.yml` `packages:` rule is in
-[CONTRIBUTING, Template Files](../.github/CONTRIBUTING.md#template-files).
+[Maintaining, Template Files](maintaining.md#template-files).
 
 ## Preprint running head
 
@@ -179,7 +189,7 @@ address satisfies it, and is inert when unused.
 The class prints its "JEL CLASSIFICATION" label whatever the block contains, so an
 empty block renders as a stray label with dangling punctuation. Omit the block
 instead. Its suppression under `journal: ecta` is described in the
-[README](../README.md#econometrica-house-style).
+[Template options](template-options.md#econometrica-house-style).
 
 ## Appendix
 
@@ -187,7 +197,7 @@ The `parts.appendix` branch sets the part inside `\begin{appendix}` after the bo
 It works only with `plugins/econsoc.mjs`: released mystmd leaves the part's
 citations out of the `.bib` and demotes its headings one level, losing the appendix
 letters. Cause, the part form, and the body form that works without the plugin:
-[README, Appendices](../README.md#appendices). The sample uses the body form, and
+[MyST authoring, Appendices](myst-authoring.md#appendices). The sample uses the body form, and
 `scripts/build-samples.sh` catches a citation lost from it (see "Cited keys are
 compared against the emitted `.bib` as sets" below).
 
@@ -255,18 +265,18 @@ frontmatter.** `heading_1`/`2`/`3` is ignored there. Getting it wrong fails
 silently: headings stay numbered so the document looks right, while every
 reference degrades to the heading title.
 
-**Declared proof kinds reach the `.tex`, and dropped ones stay out.** Rendering
-without error says nothing about content, because `myst-to-tex` drops the proof kinds
-it cannot map and still exits 0. Every emitted `.tex` must hold the kinds the samples
-declare and released `myst-to-tex` maps (`theorem`, `proposition`, `lemma`,
-`definition`, `remark`, `axiom`, `example`), and must lack `assumption` and
-`algorithm` until mystmd#3031 is released (see "Dropped proof kinds" above).
+**Declared proof kinds reach the `.tex`.** Rendering without error says nothing
+about content, because `myst-to-tex` drops the proof kinds it cannot map and still
+exits 0. Every emitted `.tex` must hold the kinds the samples declare (`theorem`,
+`claim`, `lemma`, `definition`, `remark`, `axiom`, `example`, `fact`). Only the
+plugin's `claim-fact` repair writes `claim` and `fact`; a missing one means the
+plugin did not load.
 
 **No `\caption*` reaches the `.tex`.** A blank `>` line before a blockquote's
 dash-prefixed attribution makes MyST wrap the quote in a figure with `\caption*`.
 econsocart ignores the star and typesets "FIGURE 0." into the paper, with exit 0
 and a clean log. The dash count is irrelevant
-([README, Blockquote attributions](../README.md#blockquote-attributions)).
+([Template options, Blockquote attributions](template-options.md#blockquote-attributions)).
 
 **An unresolved reference prints a literal `??`.** No LaTeX event occurs, so no
 log gate can see it. A numbered `[Sec %s](#label)` link does this in every

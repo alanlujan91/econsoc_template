@@ -17,12 +17,21 @@ project:
     - quantitative-economics
     - theoretical-economics
     - academic-publishing
+  # The documentation, as a book. The sample is its own project, sample/myst.yml.
   toc:
-    - file: sample/article.md
-    - file: sample/supplement.md
     - file: README.md
+    - file: docs/template-options.md
+    - file: docs/myst-authoring.md
+    - file: docs/plugin-repairs.md
+    - file: docs/troubleshooting.md
+    - title: Maintainers
+      children:
+        - file: docs/maintaining.md
+        - file: docs/template-internals.md
+        - file: plugins/README.md
+        - file: .github/CONTRIBUTING.md
 
 site:
-  # Pinned to article-theme v1.4.1: v2.0.0 (2026-11-10) fails `myst build --html`, every
+  # Pinned to book-theme v1.4.1: v2.0.0 (2026-11-10) fails `myst build --html`, every
   # `_public/` download link "No route matches URL", with mystmd 1.12.0 and 1.13.0 alike.
-  template: https://github.com/myst-templates/article-theme/archive/4acce1eba558b301c2aadca99a7804aa6e294e1e.zip
+  template: https://github.com/myst-templates/book-theme/archive/23f2df5493e23dfb1d9433c8aa64c87beb4232a3.zip
