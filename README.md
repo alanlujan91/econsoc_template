@@ -231,8 +231,8 @@ Two more Econometrica conventions, both demonstrated in
   styles render "Hortacsu et al." This needs the `\xcitelabel` support added in
   `econsocart.cfg` v1.0.7, so the vendored config tracks the newest release.
 - An approved supplement is referenced at the end of the introduction and cited
-  like any other work. Refer to material inside it in plain text, since it is a
-  separate document that a cross-reference cannot reach.
+  like any other work. It is a separate document, so a reference into it prints as
+  plain text; see [Cross-References](#cross-references).
 
 All three journals state their own requirements for the **submitted** PDF, and
 all three treat their LaTeX class as optional at that stage:
@@ -526,6 +526,7 @@ repair). Without it, cross-reference appendices with raw LaTeX. MyST's LaTeX ren
 - `@s1` renders "Section 1" in the PDF and "Section 1.1" in HTML, provided the document sets `title: true` and `headings: true` under `numbering` in its own frontmatter. Without those keys it renders the section title instead, which is a frontmatter configuration error rather than the [MyST limitation](https://github.com/executablebooks/mystmd/issues/1924) it is often mistaken for.
 - A numbered link to a section prints `??` when the numbering keys are set at project level in `myst.yml` rather than in the document's own frontmatter: `[Sec %s](#sec-one)` emits `Sec~??` and the PDF prints `Sec ??`, at exit 0 with nothing in the log. Plain `[](#sec-one)` and `@sec-one` still work, which makes it easy to miss. Cause and fix in [jupyter-book/mystmd#3035](https://github.com/jupyter-book/mystmd/pull/3035): a single-article export sets the article level to 0, so the numbering lookup needs a `heading_0` key that cannot be enabled. The plugin's `xref` repair fixes it ([plugins/README.md](plugins/README.md#references-and-labels)). Without the plugin, set `title: true` and `headings: true` in the document's frontmatter (the sample does) or write the reference as raw LaTeX. `scripts/build-samples.sh` fails the build on any `??` in a rendered PDF.
 - A reference to an appendix section prints "Section A" without the plugin; see [Appendices](#appendices) and [`sample/appendix.md`](sample/appendix.md). Equation, theorem, table, and figure references into the appendix (`{eq}`, `@th1`, `` {numref}` ``) render correctly either way.
+- With the plugin, a reference between the article and its supplement resolves when both are pages of one project (`toc:` in `myst.yml`): `[Supplemental Material %s](#s-label)` prints "Supplemental Material S1.1" as plain text, because econsocart bans the `xr` package ([plugins/README.md](plugins/README.md#references-and-labels)). Without the plugin, type the number.
 - With the plugin, a link whose label is missing, or whose target LaTeX does not number, prints `??label` and adds a warning to the build log. A `(label)=` line on an ordered-list item makes `[Item %s](#label)` print the item's number ([plugins/README.md](plugins/README.md#references-and-labels)).
 
 See [MyST Cross-references Guide](https://mystmd.org/guide/cross-references) for complete details.
