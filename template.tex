@@ -124,6 +124,14 @@
 \es@starred{remark}{Remark}\es@starred{axiom}{Axiom}\es@starred{conjecture}{Conjecture}
 \es@starred{observation}{Observation}\es@starred{assumption}{Assumption}\es@starred{algorithm}{Algorithm}
 \es@starred{criterion}{Criterion}\es@starred{property}{Property}\es@starred{claim}{Claim}
+%% The samples set Definition, Example and Remark upright: swap the plain style each
+%% was defined under for definition, keeping its name, counter and cleveref type.
+\def\es@upright#1{\@ifundefined{#1}{}{\expandafter\patchcmd\csname#1\endcsname{\th@plain}{\th@definition}{}{}}}
+\es@upright{definition}\es@upright{example}\es@upright{remark}
+\es@upright{definition*}\es@upright{example*}\es@upright{remark*}
+%% myst-to-tex writes emphasis as \textit, invisible in an italic theorem body;
+%% \emph switches to upright there, as a hand-written \emph does.
+\appto\th@plain{\let\textit\emph}
 \makeatother
 %% Opt-in aliases for the axiom/observation workaround: the block prints and
 %% numbers as Assumption/Algorithm. Off by default, so a genuine axiom keeps its name.
@@ -156,17 +164,50 @@
 \makeatother
 [# endif #]
 
+%% `nolinenumbers` is inert beside `draft`, which the class processes after it, so an
+%% explicit `linenumbers: false` empties the box draft hooked into the page heads.
+[# if options.draft and options.linenumbers === false #]
+\makeatletter\def\put@numberlines@box{}\makeatother
+[# endif #]
+
+%% xelatex hands the T1 font raw code points: past U+00FF they vanish, and U+00A0-00BF,
+%% U+00D7/DF/F7/FF print wrong glyphs. Map those to the LICR pdflatex's utf8 would use.
+\ifdefined\XeTeXrevision
+\makeatletter
+%% As in pdflatex, a mapped char is its LICR when typeset, itself in a write, a string in a \csname.
+\def\es@ch#1#2#3{\ifincsname#3\else\ifx\protect\@typeset@protect#2\else\noexpand#1\fi\fi}
+\def\es@def#1#2#3{\def#1{\es@ch#1{#3}{\Uchar#2}}}
+\def\es@map#1#2{\catcode#1=\active\begingroup\lccode`\~=#1\lowercase{\endgroup\def\es@tmp{~}}%
+  \expandafter\es@def\es@tmp{#1}{#2}}
+\def\es@uni#1{\ifnum0\ifnum"#1<"C0 1\fi\ifnum"#1>"FE 1\fi\ifnum"#1="D7 1\fi\ifnum"#1="DF 1\fi
+  \ifnum"#1="F7 1\fi>0 \expandafter\es@map\else\expandafter\@gobbletwo\fi{"#1 }}
+\let\es@duc\DeclareUnicodeCharacter\let\DeclareUnicodeCharacter\es@uni
+\input{t1enc.dfu}\input{ts1enc.dfu}\input{omsenc.dfu}
+\let\DeclareUnicodeCharacter\es@duc
+%% Vietnamese letters T1 can stack (never horn or hook above): capital's code, outer
+%% accent, inner accent, capital, small letter; the small letter's code is the next one.
+\def\es@vi#1#2#3#4#5{\es@map{"#1 }{#2{#3#4}}\es@map{\numexpr"#1+1\relax}{#2{#3#5}}}
+\es@vi{1EA0}\d{}Aa\es@vi{1EA4}\'\^Aa\es@vi{1EA6}\`\^Aa\es@vi{1EAA}\~\^Aa\es@vi{1EAC}\d\^Aa
+\es@vi{1EAE}\'\u Aa\es@vi{1EB0}\`\u Aa\es@vi{1EB4}\~\u Aa\es@vi{1EB6}\d\u Aa\es@vi{1EB8}\d{}Ee
+\es@vi{1EBC}\~{}Ee\es@vi{1EBE}\'\^Ee\es@vi{1EC0}\`\^Ee\es@vi{1EC4}\~\^Ee\es@vi{1EC6}\d\^Ee
+\es@vi{1ECA}\d{}Ii\es@vi{1ECC}\d{}Oo\es@vi{1ED0}\'\^Oo\es@vi{1ED2}\`\^Oo\es@vi{1ED6}\~\^Oo
+\es@vi{1ED8}\d\^Oo\es@vi{1EE4}\d{}Uu\es@vi{1EF4}\d{}Yy\es@vi{1EF8}\~{}Yy
+\makeatother
+\fi
+
 \endlocaldefs
 
 \begin{document}
 
+%% esc and escmath turn each pair of straight double quotes into ``...'', as the body
+%% does and the official "Supplement to ``Title''" needs; a lone quote stays as typed.
 \begin{frontmatter}
 
 %% `default('')` precedes `string`, which calls .toString() and THROWS on an
 %% absent key. A page inheriting short_title from the project has none of its own,
 %% so the export aborted while myst still exited 0 and kept the stale PDF.
-[# macro esc(s) #][-s|default('')|string|replace('\\','\\textbackslash{}')|replace('&','\\&')|replace('%','\\%')|replace('#','\\#')|replace('_','\\_')|replace('~','\\textasciitilde{}')|replace('^','\\textasciicircum{}')-][# endmacro #]
-[# macro escmath(s) #][-s|default('')|string|replace('&','\\&')|replace('%','\\%')|replace('#','\\#')-][# endmacro #]
+[# macro esc(s) #][-s|default('')|string|replace('\\','\\textbackslash{}')|replace('&','\\&')|replace('%','\\%')|replace('#','\\#')|replace('_','\\_')|replace('~','\\textasciitilde{}')|replace('^','\\textasciicircum{}')|replace(r/"([^"]*)"/g,"``$1''")-][# endmacro #]
+[# macro escmath(s) #][-s|default('')|string|replace('&','\\&')|replace('%','\\%')|replace('#','\\#')|replace(r/"([^"]*)"/g,"``$1''")-][# endmacro #]
 %% The running head falls back to the title. An absent short_title used to render
 %% \runtitle{}, which printed a BLANK running head on every odd page rather than
 %% failing; a too-long head is visibly wrong, an empty one is not.
@@ -201,6 +242,10 @@
 [#- elif author.given is defined -#]
 \fnms{[-esc(author.given|trim)-]}~
 [#- endif -#]
+[#- if author.nameParsed.family is defined -#]
+[#- if author.nameParsed.dropping_particle -#]\particle{[-esc(author.nameParsed.dropping_particle|trim)-]}~[#- endif -#]
+[#- if author.nameParsed.non_dropping_particle -#]\particle{[-esc(author.nameParsed.non_dropping_particle|trim)-]}~[#- endif -#]
+[#- endif -#]
 \snm{
 [#- if author.nameParsed.family is defined -#]
 [-esc(author.nameParsed.family|trim)-]
@@ -212,7 +257,9 @@
 [-esc(author.family|trim)-]
 [#- else -#]
 [-esc(author.name|trim)-]
-[#- endif -#]}[# if author.email #]\ead[label=e[-loop.index-]]{[-author.email-]}[# endif #]}
+[#- endif -#]}
+[#- if author.nameParsed.family is defined and author.nameParsed.suffix -#], [-esc(author.nameParsed.suffix|trim)-][#- endif -#]
+[# if author.email #]\ead[label=e[-loop.index-]]{[-author.email-]}[# endif #]}
 [# endfor #]
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Addresses                                %%
@@ -309,16 +356,20 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Bibliography:  BibTeX Version          %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% One style per journal (ecta/qe/te), all three vendored and listed in
-%% template.yml. `preprint` does not change it, and supplements match the article
-%% despite upstream naming ecta-fullname. docs/template-internals.md.
+
+%% One vendored style per journal; `preprint` keeps it and supplements match the article
+%% (docs/template-internals.md). plugins/econsoc.mjs (authored-bib) defines
+%% \econsocbibliography first when it writes the paper's own entries in place of main.bib.
 [# if doc.bibliography #]
-\bibliographystyle{[# if options.journal == "ecta" #]econsoc[# else #][-options.journal-][# endif #]} % Style BST file
-\bibliography{[-doc.bibliography-]}  % Bibliography file (usually '*.bib')
+\providecommand{\econsocbibliography}{[-doc.bibliography-]}
 [# else #]
 %% NOTE: User has not specified a bibliography file in frontmatter.
 %% If you want to use BibTeX, please specify 'bibliography: <your_bib_file.bib>'
 %% in your document's frontmatter.
 [# endif #]
+\ifdefined\econsocbibliography
+\bibliographystyle{[# if options.journal == "ecta" #]econsoc[# else #][-options.journal-][# endif #]} % Style BST file
+\bibliography{\econsocbibliography}  % Bibliography file (usually '*.bib')
+\fi
 
 \end{document}

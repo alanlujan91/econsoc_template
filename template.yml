@@ -103,7 +103,9 @@ options:
     default: false
   - type: boolean
     id: linenumbers
-    description: Display line numbers (useful during review)
+    description: >-
+      Display line numbers (useful during review). A draft numbers its lines
+      unless this is set to false explicitly; left unset, the draft keeps them.
     default: false
   - type: boolean
     id: axiom_as_assumption

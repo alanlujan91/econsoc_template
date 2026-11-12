@@ -43,9 +43,9 @@ project:
 YML
     cat > "$out/main.md" <<'MD'
 ---
-title: "R&D at 50% of Cost #1 with $x_1$"
+title: 'R&D at 50% of Cost #1 with $x_1$ in "Quoted Work"'
 short_title: "R&D 50%"
-keywords: ["K&W risk"]
+keywords: ["K&W risk", 'the "quoted" kw', 'a 12" lone quote']
 tags: ["D&14"]
 ---
 
@@ -90,6 +90,9 @@ PRESENCE=(
     '\\kwd{D\\&14}'
     '\\orgname{Smith \\& Co\\_Ltd}'
     '\\orgdiv{R\\&D 50\\%}'
+    "in \`\`Quoted Work''}"
+    "\\\\kwd{the \`\`quoted'' kw}"
+    '\\kwd{a 12" lone quote}'
 )
 EMPTY=( '\\ead\[[^]]*\]{}' '\\orgdiv{}' '\\kwd{}' '\\snm{}' )
 
@@ -155,6 +158,8 @@ if [ "${1:-}" = "--self-test" ]; then
     # An author with no email emits \ead{}, which econsocart prints as a dangling "Name:".
     seed "empty \\ead emitted" '/\\ead/ { s/\[# if author.email #\]//; s/\[# endif #\]//; }'
     seed "blank running head" 's/doc.short_title or doc.title/doc.short_title/'
+    # A dead quote regex leaves "Title" straight, breaking the official supplement title.
+    seed "straight frontmatter quotes" 's#r/"#r/QQ#g'
 
     # The unmutated template must still PASS, or the checks are simply broken.
     if run_checks "$repo"; then echo "  unmutated template passes"
