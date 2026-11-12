@@ -1,5 +1,5 @@
 ---
-title: Supplement to "A sample article title"
+title: Supplement to "Title of the Main Article"
 short_title: A sample running head title
 date: 2025-01-15
 license: CC-BY-4.0
