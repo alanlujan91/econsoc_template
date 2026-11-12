@@ -1,12 +1,16 @@
-// The reference and label repairs: xref, target-labels, unnumbered-refs, missing-refs,
-// label-case, stacked-labels, raw-refs and section-numbering, with the helpers they share (the
-// LaTeX for a reference that cannot be numbered, a link's own wording around its number, and the
-// page's targets with the label myst-to-tex writes for each).
+// The reference, label and heading repairs: xref, target-labels, unnumbered-refs, missing-refs,
+// label-case, stacked-labels, raw-refs, section-numbering, unnumbered-headings and page-links,
+// with the helpers they share (the LaTeX for a reference that cannot be numbered, a link's own
+// wording around its number, and the page's targets with the label myst-to-tex writes for each).
 
 import fs from 'node:fs';
 import path from 'node:path';
+import yaml from 'js-yaml';
 import {
+  alpha,
+  asList,
   escapeRegExp as escape,
+  filesUnder,
   hiddenBlock,
   identifierOf,
   isHiddenBlock,
@@ -18,6 +22,7 @@ import {
   rawLatex,
   readFrontmatter,
   renderTex,
+  roman,
   texEscape,
   texOnly,
   textOf,
@@ -186,7 +191,8 @@ const xrefSource = {
         if (APPENDIX_CLOSE.test(source)) inside = false;
         return;
       }
-      if (node.type !== 'heading') return;
+      // A `\section*` (unnumbered-headings) steps no counter
+      if (node.type !== 'heading' || node.enumerated === false) return;
       numberHeading(numbers.whole, counts.whole, node, top);
       if (inside) numberHeading(numbers.raw, counts.raw, node, top);
     });
@@ -282,12 +288,6 @@ export const xref = { repair: 'xref', transforms: [xrefSource, crossReferences] 
 // identifier -> item number, per file, filled at document stage for every page of the project
 const itemsByFile = new Map();
 
-const alpha = (n) => String.fromCharCode(96 + n);
-const roman = (n) =>
-  [['x', 10], ['ix', 9], ['v', 5], ['iv', 4], ['i', 1]].reduce((out, [s, v]) => {
-    for (; n >= v; n -= v) out += s;
-    return out;
-  }, '');
 // An item's number from those of its enumerate levels, and the counters LaTeX prints it from
 const FORMATS = [
   ([a]) => `${a}`,
@@ -306,13 +306,15 @@ function itemLabel(level, label) {
 function recordItems(node, levels, items) {
   if (node.type === 'list' && node.ordered) {
     node.children.forEach((item, i) => {
-      // From the list's start, which list-start makes LaTeX count from too
-      const path = [...levels, (node.start ?? 1) + i];
+      // From the list's start, which list-start makes LaTeX count from too; an item the
+      // {enumerate} directive labels (text.mjs, enumerate-labels) prints that label
+      const counts = [...levels, (node.start ?? 1) + i];
       const first = item.children?.[0];
-      if (first?.type === 'paragraph' && first.identifier && path.length <= FORMATS.length) {
-        items.set(first.identifier, { number: FORMATS[path.length - 1](path), level: path.length });
+      if (first?.type === 'paragraph' && first.identifier && counts.length <= FORMATS.length) {
+        const number = item.econsocLabel || FORMATS[counts.length - 1](counts);
+        items.set(first.identifier, { number, level: counts.length });
       }
-      item.children?.forEach((child) => recordItems(child, path, items));
+      item.children?.forEach((child) => recordItems(child, counts, items));
     });
     return;
   }
@@ -444,7 +446,9 @@ function unnumberedTex(node, target, file) {
   if (node.kind === 'solution') return solutionTex(node, target, file);
   if (node.kind !== 'heading') return missingTex(label);
   const title = target ? plainText(target) : unnumberedTargets.get(node.identifier);
-  return title == null ? undefined : texEscape(title).replace(/\s+/g, '~');
+  if (title != null) return texEscape(title).replace(/\s+/g, '~');
+  // A title holding math or markup, which myst-to-tex would print without its `$`
+  return target ? () => renderTex([{ type: 'paragraph', children: target.children }], [], file).trim() : undefined;
 }
 
 const unnumberedRefsTransform = {
@@ -590,16 +594,6 @@ const aliasesByRoot = new Map();
 // identifier -> surviving label, for the other repairs (raw-refs); empty while this one is off
 const aliases = new Map();
 
-function markdownFiles(dir, out = []) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name.startsWith('.') || entry.name.startsWith('_build') || entry.name === 'node_modules') continue;
-    const file = path.join(dir, entry.name);
-    if (entry.isDirectory()) markdownFiles(file, out);
-    else if (/\.md$/i.test(entry.name)) out.push(file);
-  }
-  return out;
-}
-
 // The stacks of one source: arrays of labels, the survivor first
 function stacks(source) {
   const lines = source.split(/\r?\n/);
@@ -637,7 +631,7 @@ function projectAliases(file) {
   const root = projectRoot(file);
   if (!aliasesByRoot.has(root)) {
     const map = new Map();
-    for (const source of markdownFiles(root)) {
+    for (const source of filesUnder(root, /\.md$/i)) {
       for (const [survivor, ...lost] of stacks(fs.readFileSync(source, 'utf8'))) {
         for (const label of lost) if (identifierOf(label) !== identifierOf(survivor)) map.set(identifierOf(label), survivor);
       }
@@ -878,3 +872,106 @@ const unnumber = {
 };
 
 export const sectionNumbering = { repair: 'section-numbering', transforms: [record, unnumber] };
+
+// ---------------------------------------------------------------------------------------------
+// unnumbered-headings
+// One unnumbered heading. MyST has no syntax for it (its docs: "TODO: support pandoc style
+// unnumbered {-}"), so `# Title {-}` printed "Title {-}" numbered, and `\section*`, the samples'
+// single unnumbered appendix ("APPENDIX: TITLE") included, could not be written. Before MyST
+// numbers its targets, a trailing pandoc ` {-}` or ` {.unnumbered}` is cut from the heading and
+// the heading set `enumerated: false`: myst-to-tex writes `\section*`, and the site drops the
+// number and the suffix too (a deliberate fix of the site). target-labels labels the heading
+// when a link names it, and unnumbered-refs writes the links (its title, or `??label` for `%s`).
+// Runs before xref, whose appendix letters skip it.
+
+const UNNUMBERED = /\s*\{\s*(?:-|\.unnumbered)\s*\}\s*$/;
+
+// myst-common createHtmlId, the identifier MyST gives a heading without a label
+const htmlId = (identifier) =>
+  identifier
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/^([0-9-])/, 'id-$1')
+    .replace(/-[-]+/g, '-')
+    .replace(/(?:^[-]+)|(?:[-]+$)/g, '');
+
+const unnumberedHeadingsTransform = {
+  name: 'econsoc-unnumbered-headings',
+  doc: 'Writes a heading ending in {-} or {.unnumbered} without a number',
+  stage: 'document',
+  plugin: () => (tree) => {
+    walk(tree, (node) => {
+      const last = node.type === 'heading' ? node.children?.at(-1) : undefined;
+      if (last?.type !== 'text' || !UNNUMBERED.test(last.value ?? '')) return;
+      last.value = last.value.replace(UNNUMBERED, '');
+      if (!last.value) node.children.pop();
+      node.enumerated = false;
+      // An implicit label was made from the title with its suffix
+      const title = textOf(node).trim();
+      if (node.implicit && title) {
+        node.label = title;
+        node.identifier = node.html_id = htmlId(identifierOf(title));
+      }
+    });
+  },
+};
+
+export const unnumberedHeadings = { repair: 'unnumbered-headings', transforms: [unnumberedHeadingsTransform] };
+
+// ---------------------------------------------------------------------------------------------
+// page-links
+// Links to another page of the project. myst-to-tex writes `[the supplement](supplement.md)` as
+// `\href{/supplement}{the supplement}`, a URL relative to the website's root that is dead in a
+// standalone PDF. Each such link is now its words in plain text, as xref writes a reference into
+// the sibling document; a link to a page no LaTeX export holds becomes
+// `\href{https://<host>/supplement}{...}` when myst.yml names the site's host in `site.domains`
+// (with `BASE_URL`, MyST's site path, between them when set). The site keeps the link.
+
+const LATEX_FORMATS = new Set(['tex', 'pdf', 'pdf+tex', 'tex+pdf']);
+
+const isLatexExport = (entry) => LATEX_FORMATS.has(entry?.format) || /\.(tex|pdf)$/.test(entry?.output ?? '');
+
+// Whether a LaTeX export holds `file`: one in its frontmatter, or one in myst.yml listing it
+function inLatexExport(file, root) {
+  const fm = readFrontmatter(file);
+  if (asList(fm.exports ?? fm.export).some(isLatexExport)) return true;
+  return asList(projectConfig(root).exports).some(
+    (entry) =>
+      isLatexExport(entry) &&
+      [...asList(entry.articles), ...asList(entry.article)]
+        .map((a) => a?.file ?? a)
+        .some((a) => typeof a === 'string' && path.resolve(root, a) === file),
+  );
+}
+
+// The site's root URL from myst.yml `site.domains`, the host MyST deploys it to, or undefined
+function siteRoot(root) {
+  try {
+    const host = asList(yaml.load(fs.readFileSync(path.join(root, 'myst.yml'), 'utf8'))?.site?.domains)[0];
+    if (typeof host !== 'string' || !host) return undefined;
+    const url = new URL(/^https?:\/\//.test(host) ? host : `https://${host}`);
+    return `${url.protocol}//${url.host}${(process.env.BASE_URL ?? '').replace(/\/+$/, '')}`;
+  } catch {
+    return undefined;
+  }
+}
+
+const pageLinksTransform = {
+  name: 'econsoc-page-links',
+  doc: 'Writes a link to another page as its words, or as an absolute URL to the site',
+  stage: 'project',
+  plugin: () => (tree, vfile) => {
+    if (!vfile.path) return;
+    const file = vfile.path.split('#')[0];
+    const root = projectRoot(file);
+    const site = siteRoot(root);
+    walk(tree, (node, parent, index) => {
+      if (node.type !== 'link' || !node.internal || !parent || !/^\/(?!\/)/.test(node.url ?? '')) return;
+      const target = node.urlSource && path.resolve(path.dirname(file), node.urlSource.split('#')[0]);
+      const live = site && !(target && inLatexExport(target, root));
+      const shown = live ? { ...node, url: `${site}${node.url}` } : { type: 'span', children: node.children };
+      parent.children[index] = rawLatex(node, () => renderTex([{ type: 'paragraph', children: [shown] }], [], vfile).trim());
+    });
+  },
+};
+
+export const pageLinks = { repair: 'page-links', transforms: [pageLinksTransform] };

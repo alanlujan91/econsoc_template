@@ -1,30 +1,37 @@
-// The float, macro and part repairs: raw-tables, table-columns, subfigures, boxed-floats,
-// ignored-images, block-breaks, macros and part-headings.
+// The float, macro and part repairs: raw-tables, table-columns, table-notes, subfigures,
+// boxed-floats, ignored-images, block-breaks, macros and part-headings.
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
   collect,
+  cutText,
   escapeRegExp as escapeRe,
   labelOf,
+  MINUS_SIGN,
   pageParts,
   projectConfig,
   rawLatex,
   readFrontmatter,
   renderTex,
   replaceNode as replace,
+  splitTexts,
   texOnly,
+  texSymbols,
   textOf,
   walk,
 } from './util.mjs';
 
-// LaTeX for four float layouts released myst-to-tex (mystmd 1.12.0) gets wrong, each at exit 0:
+// LaTeX for five float layouts released myst-to-tex (mystmd 1.12.0) gets wrong, each at exit 0:
 //   raw-tables     A `{table}` wrapping a raw tabular writes the tabular INSIDE `\caption{}`, flush
 //                  left, because MyST files raw content under the caption's legend.
 //   table-columns  A pipe table gets equal-width `p{}` columns, so a column of short numbers takes
-//                  as much room as one of sentences and the table wraps into pages.
-//   subfigures     A multi-image `{figure}` nests a `figure` per image inside the figure, and the
+//                  as much room as one of sentences and the table wraps into pages; numbers sit
+//                  left with hyphens for minus signs; an HTML table's colspan writes `NaN` into
+//                  the column spec (100 LaTeX errors, no PDF) and its rowspan shifts the cells.
+//   table-notes    The notes under a `{table}` print inside its title, merged into `\caption`.
+//   subfigures     A multi-panel `{figure}` nests a `figure` per panel inside the figure, and the
 //                  outer label goes to the last panel: "Not in outer par mode", `\ref` prints `??`.
 //   boxed-floats   A figure or table inside an admonition (`framed`, a box) or an epigraph (a
 //                  `figure` itself) is a float in inner mode: "Not in outer par mode", float lost.
@@ -53,6 +60,8 @@ const trimTex = (tex) => tex.replace(/^\s+|\s+$/g, '');
 // A container's caption content, taken at transform time: before myst-to-tex reads a lazy node,
 // its transformLegends merges each legend into the caption, inside raw children too
 const captionOf = (container) => [...(container.children.find((child) => child.type === 'caption')?.children ?? [])];
+// Its legend's content, taken at transform time too, since transformLegends then deletes it
+const legendOf = (container) => container.children.filter((child) => child.type === 'legend').flatMap((child) => [...child.children]);
 
 // `\caption[]{...}\label{...}` as myst-to-tex writes a container's caption; '' for none
 function captionTex(container, content, footnotes, file) {
@@ -61,6 +70,16 @@ function captionTex(container, content, footnotes, file) {
   const numbered = container.enumerated ?? !!id;
   const body = trimTex(renderTex(content, footnotes, file));
   return `\\caption${numbered ? '[]' : '*'}{${body}}${numbered && id ? `\\label{${id}}` : ''}\n`;
+}
+
+// Table notes as one econsocart `\legend{}`, which prints "Note:" under the table. Its argument
+// takes no `\par` token, so paragraphs are joined by `\endgraf`; any other block follows as it is.
+function legendTex(nodes, footnotes, file) {
+  const paragraphs = nodes.filter((node) => node.type === 'paragraph');
+  const blocks = nodes.filter((node) => node.type !== 'paragraph');
+  const text = paragraphs.map((node) => trimTex(renderTex(node.children, footnotes, file)).replace(/\s*\n\s*/g, ' '));
+  const legend = text.length ? `\\legend{${text.join('\\endgraf ')}}\n` : '';
+  return `${legend}${blocks.map((node) => `${trimTex(renderTex([node], footnotes, file))}\n`).join('')}`;
 }
 
 // raw-tables: the caption first, as the class sets tables, then the raw tabular and any notes
@@ -79,13 +98,17 @@ const rawTablesTransform = {
     collect(tree, isRawTable).forEach(({ node, ancestors }) => {
       const caption = captionOf(node);
       // MyST files the raw block under a legend; its other content is the table's notes
-      const body = node.children
+      const content = node.children
         .filter((child) => child.type !== 'caption')
         .flatMap((child) => (child.type === 'legend' ? child.children : [child]));
+      // The paragraphs after the last raw block are the notes
+      const last = content.findLastIndex(isRaw);
+      const body = content.slice(0, last + 1);
+      const notes = content.slice(last + 1);
       const env = fullWidth(node) ? 'table*' : 'table';
       const tex = () => {
         const tabular = trimTex(renderTex(body, footnotes, file));
-        return `\n\\begin{${env}}\n\\centering\n${captionTex(node, caption, footnotes, file)}${tabular}\n\\end{${env}}\n\n`;
+        return `\n\\begin{${env}}\n\\centering\n${captionTex(node, caption, footnotes, file)}${tabular}\n${legendTex(notes, footnotes, file)}\\end{${env}}\n\n`;
       };
       replace(ancestors.at(-1), node, lazyRawLatex(node, tex));
     });
@@ -111,44 +134,103 @@ const isBlocky = (cell) => {
   return children.filter((n) => n.type === 'paragraph').length > 1 || children.some((n) => BLOCKS.has(n.type));
 };
 
-// Column spec for a table of uniform rows, or null to leave myst-to-tex's own
+// A number as the samples' tables print one: signed, grouped, a decimal part, a percent sign,
+// parentheses (a standard error) or significance stars (MINUS_SIGN, U+2212, from util).
+const NUMBER = new RegExp(`^[([]?[-+${MINUS_SIGN}]?(\\d{1,3}(,\\d{3})+|\\d*)(\\.\\d+)?[)\\]]?%?\\**$`);
+const isNumber = (text) => /\d/.test(text) && NUMBER.test(text.replace(/\s+/g, ''));
+
+// Spans: each row's cells placed on the column grid, past the columns a rowspan above still
+// covers. A cell is {cell, col, span, down}; `covered` holds the columns a rowspan fills.
+function grid(table) {
+  const carry = [];
+  const rows = (table.children ?? []).map((row) => {
+    const covered = new Set(carry.flatMap((left, col) => (left > 0 ? [col] : [])));
+    const cells = [];
+    let col = 0;
+    for (const cell of row.children ?? []) {
+      while (covered.has(col)) col += 1;
+      const span = Math.max(1, cell.colspan ?? 1);
+      const down = Math.max(1, cell.rowspan ?? 1);
+      cells.push({ cell, col, span, down });
+      for (let k = 0; k < span; k += 1) carry[col + k] = down;
+      col += span;
+    }
+    covered.forEach((c) => (carry[c] -= 1));
+    cells.forEach(({ col: c, span }) => {
+      for (let k = 0; k < span; k += 1) carry[c + k] -= 1;
+    });
+    const header = cells.length > 0 && cells.every(({ cell }) => cell.header);
+    return { cells, covered, header };
+  });
+  const width = Math.max(0, ...rows.flatMap(({ cells, covered }) => [...cells.map((c) => c.col + c.span), ...[...covered].map((c) => c + 1)]));
+  return { rows, width };
+}
+
+// Column spec for a table, from its cells that span one column; null to leave myst-to-tex's own
 function columnSpec(table) {
-  const rows = table.children ?? [];
-  const cols = rows[0]?.children?.length ?? 0;
-  const spans = (c) => (c.colspan ?? 1) > 1 || (c.rowspan ?? 1) > 1;
-  if (!cols || rows.some((row) => row.children.length !== cols || row.children.some(spans))) return null;
+  const { rows, width: cols } = grid(table);
+  if (!cols) return null;
   const columns = [...Array(cols).keys()].map((j) => {
-    const cells = rows.map((row) => row.children[j]);
-    const longest = Math.max(...cells.map((cell) => cellText(cell).trim().length));
-    const align = ALIGN[cells.find((cell) => !cell.header)?.align ?? cells[0].align] ?? 'l';
-    return { longest, align, text: longest > SHORT || cells.some(isBlocky) };
+    const cells = rows.flatMap(({ cells: row }) => row.filter((c) => c.col === j && c.span === 1).map((c) => c.cell));
+    const body = cells.filter((cell) => !cell.header);
+    const longest = Math.max(0, ...cells.map((cell) => cellText(cell).trim().length));
+    const explicit = ALIGN[body.find((cell) => cell.align)?.align ?? cells.find((cell) => cell.align)?.align];
+    // A column of numbers right-aligns, as in the samples, unless the author aligned it
+    const filled = body.map((cell) => cellText(cell).trim()).filter(Boolean);
+    const numeric = filled.length > 0 && filled.every(isNumber);
+    const align = explicit ?? (numeric ? 'r' : 'l');
+    return { longest, align, numeric: numeric && align === 'r', text: longest > SHORT || cells.some(isBlocky) };
   });
   const fixed = columns.filter((c) => !c.text).reduce((sum, c) => sum + c.longest * PT_PER_CHAR + PAD_PT, 0);
-  // Short columns alone wider than the page: myst-to-tex's wrapping columns are the lesser harm
-  if (fixed > TEXT_WIDTH_PT) return null;
   const text = columns.filter((c) => c.text);
   const total = text.reduce((sum, c) => sum + c.longest, 0);
+  // Short columns alone wider than the page: myst-to-tex's equal wrapping columns
+  const equal = `p{\\dimexpr ${(1 / cols).toFixed(3)}\\linewidth-2\\tabcolsep}`;
   const spec = columns.map((c) => {
+    if (fixed > TEXT_WIDTH_PT) return equal;
     if (!c.text) return c.align;
     // tabularx shares the free width by \hsize; the factors must sum to the number of X columns
     const share = text.length === 1 ? '' : `\\hsize=${((c.longest / total) * text.length).toFixed(3)}\\hsize`;
     return `>{${RAGGED}${share}}X`;
   });
-  return { spec: spec.join(''), x: text.length > 0 };
+  return { spec: spec.join(''), x: fixed <= TEXT_WIDTH_PT && text.length > 0, rows, columns };
 }
 
+// A hyphen or U+2212 opening a number in a cell prints as a hyphen; the samples write `$-$2.48`.
+// util.texSymbols, which text-symbols applies to running text, rewrites a copy of the cell's
+// nodes, so the site keeps the author's text.
+function texCells(nodes) {
+  const cell = { type: 'tableCell', children: structuredClone(nodes) };
+  splitTexts(cell, (value, { start }) => cutText(value, texSymbols(value, start)));
+  return cell.children;
+}
+
+// A spanning header gets a rule under it when another header row follows, as `\cline{5-7}` in
+// the samples; the last header row gets `\midrule`. A header over a number column is centred.
 function tabularTex(table, spec, inContainer, footnotes, file) {
   const env = spec.x ? 'tabularx' : 'tabular';
   const width = spec.x ? '{\\linewidth}' : '';
   const lines = [`\\begin{${env}}${width}{${spec.spec}}`, '\\toprule'];
-  for (const row of table.children) {
-    const cells = row.children.map(({ children = [] }) => {
-      const inner = children.length === 1 && children[0].type === 'paragraph' ? children[0].children : children;
-      return trimTex(renderTex(inner, footnotes, file));
-    });
-    lines.push(`${cells.join(' & ')} \\\\`);
-    if (row.children[0]?.header) lines.push('\\midrule');
-  }
+  const cellTex = ({ cell, col, span, down }) => {
+    const children = cell.children ?? [];
+    const inner = children.length === 1 && children[0].type === 'paragraph' ? children[0].children : children;
+    let tex = trimTex(renderTex(texCells(inner), footnotes, file));
+    if (down > 1) tex = `\\multirow{${down}}{*}{${tex}}`;
+    if (span > 1) return `\\multicolumn{${span}}{c}{${tex}}`;
+    return cell.header && spec.columns[col].numeric ? `\\multicolumn{1}{c}{${tex}}` : tex;
+  };
+  spec.rows.forEach(({ cells, header }, i) => {
+    const row = [];
+    for (let col = 0; col < spec.columns.length; ) {
+      const cell = cells.find((c) => c.col === col);
+      row.push(cell ? cellTex(cell) : '');
+      col += cell ? cell.span : 1;
+    }
+    lines.push(`${row.join(' & ')} \\\\`);
+    if (!header) return;
+    if (!spec.rows[i + 1]?.header) lines.push('\\midrule');
+    else cells.filter((c) => c.span > 1).forEach((c) => lines.push(`\\cmidrule(lr){${c.col + 1}-${c.col + c.span}}`));
+  });
   lines.push('\\bottomrule', `\\end{${env}}`);
   const tex = lines.join('\n');
   // myst-to-tex sets a table outside a float off with \bigskip
@@ -168,6 +250,45 @@ const tableColumnsTransform = {
       const spec = columnSpec(node);
       if (!spec) return;
       replace(ancestors.at(-1), node, lazyRawLatex(node, () => tabularTex(node, spec, !!container, footnotes, file), false));
+    });
+  },
+};
+
+// table-notes: the paragraphs under a `{table}`'s markdown table (its legend) are the table's
+// notes, but myst-to-tex's transformLegends merges them into `\caption`, so the note prints in
+// the title. The table renders without its legend and the notes follow the tabular as
+// `\legend{}`, as the samples set them. A longtable (`multipage`) keeps the merged caption.
+const tableNotesTransform = {
+  name: 'floats-table-notes',
+  doc: 'Writes the notes under a {table} as econsocart \\legend{} after the tabular, not in the caption',
+  stage: 'project',
+  plugin: (_opts, utils) => (tree, file) => {
+    const footnotes = footnotesOf(utils, tree);
+    const isNoted = (node) =>
+      node.type === 'container' &&
+      node.kind === 'table' &&
+      !node.subcontainer &&
+      !node.multipage &&
+      // A table of panels is subfigures' to write; a raw tabular sits in the legend, raw-tables'
+      !node.children?.some((child) => child.subcontainer) &&
+      node.children?.some((child) => child.type !== 'caption' && child.type !== 'legend') &&
+      node.children?.some((child) => child.type === 'legend' && child.children?.length);
+    collect(tree, isNoted).forEach(({ node, ancestors }) => {
+      // Snapshots: transformLegends empties the legend into the caption before `tex` is read
+      const caption = node.children.find((child) => child.type === 'caption');
+      const notes = legendOf(node);
+      const bare = {
+        ...node,
+        children: node.children
+          .filter((child) => child.type !== 'legend')
+          .map((child) => (child === caption ? { ...caption, children: captionOf(node) } : child)),
+      };
+      const tex = () => {
+        const float = trimTex(renderTex([bare], footnotes, file));
+        const end = float.lastIndexOf('\\end{table');
+        return `\n${float.slice(0, end)}${legendTex(notes, footnotes, file)}${float.slice(end)}\n\n`;
+      };
+      replace(ancestors.at(-1), node, lazyRawLatex(node, tex));
     });
   },
 };
@@ -208,48 +329,92 @@ const boxedFloatsTransform = {
   },
 };
 
-// subfigures: one figure, each image a subfigure (subcaption, which template.tex loads) under its
-// own caption and label, then the figure's caption and label
+// subfigures: one float, each panel a subfigure (subcaption, which template.tex loads) under its
+// own caption and label, its notes below, then the float's caption and label. A panel holds an
+// image drawn at the panel's width, other content (a table, code) at its own size, or panels
+// of its own (a nested multi-image figure), set as subfigures inside it. A `{table}` of panels
+// is a table of subtables, captions above and its notes as `\legend{}`.
 const DEFAULT_PAGE_WIDTH_PIXELS = 800; // myst-to-tex utils
-function widthFraction(width, panels) {
+const PANELS_WIDTH = 0.96;
+
+// An image's width as a fraction of the line, or null when it has none
+function widthFraction(width) {
   if (typeof width === 'string' && width.endsWith('%')) return Number(width.slice(0, -1)) / 100;
   if (typeof width === 'string' && width.endsWith('px')) return Number(width.slice(0, -2)) / DEFAULT_PAGE_WIDTH_PIXELS;
   if (typeof width === 'number' && !Number.isNaN(width)) return width < 1 ? width : width / 100;
-  return 0.96 / panels;
+  return null;
 }
 
-const panelImage = (sub) => {
+// A panel as it is at transform time: transformLegends later merges its legend into its caption
+function panelOf(sub) {
   const content = sub.children.filter((child) => child.type !== 'caption' && child.type !== 'legend');
-  return content.length === 1 && content[0].type === 'image' ? content[0] : null;
-};
+  const image = content.length === 1 && content[0].type === 'image' ? content[0] : null;
+  const nested = content.length > 0 && content.every((child) => child.subcontainer);
+  return { sub, image, content, caption: captionOf(sub), notes: legendOf(sub), panels: nested ? content.map(panelOf) : null };
+}
+
+// An image panel takes its image's width; the other panels share what is left of the line
+function panelWidths(panels) {
+  const own = panels.map((panel) => (panel.image ? widthFraction(panel.image.width) : null));
+  const unset = own.filter((width) => width == null).length;
+  const free = PANELS_WIDTH - own.reduce((sum, width) => sum + (width ?? 0), 0);
+  const share = free > 0.1 * unset ? free / unset : PANELS_WIDTH / panels.length;
+  return own.map((width) => width ?? share);
+}
+
+function panelsTex(panels, table, footnotes, file) {
+  const env = table ? 'subtable' : 'subfigure';
+  const widths = panelWidths(panels);
+  return panels
+    .map((panel, i) => {
+      const id = labelOf(panel.sub);
+      const text = trimTex(renderTex(panel.caption, footnotes, file));
+      // A panel of panels takes its letter before theirs, as the site does: a phantom caption
+      // steps the counter, and the caption it prints after them recalls that letter
+      const lettered = panel.panels && id;
+      const caption = lettered ? `\\subcaption*{(\\subref*{${id}}) ${text}}` : `\\caption{${text}}${id ? `\\label{${id}}` : ''}`;
+      // Read here, when myst-to-tex renders: an image url is then the exported file's
+      const body = panel.image
+        ? `\\includegraphics[width=\\linewidth]{${panel.image.url}}`
+        : panel.panels
+          ? `${lettered ? `\\phantomcaption\\label{${id}}\n` : ''}${panelsTex(panel.panels, table, footnotes, file)}`
+          : trimTex(renderTex(panel.content, footnotes, file));
+      const notes = panel.notes.length ? [`{\\footnotesize ${trimTex(renderTex(panel.notes, footnotes, file))}\\par}`] : [];
+      return [
+        `\\begin{${env}}[t]{${widths[i].toFixed(3)}\\linewidth}`,
+        '\\centering',
+        ...(table ? [caption, body] : [body, caption]),
+        ...notes,
+        `\\end{${env}}`,
+      ].join('\n');
+    })
+    .join('\\hfill\n');
+}
 
 const subfiguresTransform = {
   name: 'floats-subfigures',
-  doc: 'Writes a multi-image figure as one figure of subfigures, its label on the figure',
+  doc: 'Writes a figure or table of panels as one float of subfigures, its label on the float',
   stage: 'project',
   plugin: (_opts, utils) => (tree, file) => {
     const footnotes = footnotesOf(utils, tree);
-    const isMulti = (node) => node.type === 'container' && node.children?.some((child) => child.subcontainer);
+    // The outermost container of panels: a nested one is a panel of it
+    const isMulti = (node) => node.type === 'container' && !node.subcontainer && node.children?.some((child) => child.subcontainer);
     collect(tree, isMulti).forEach(({ node, ancestors }) => {
-      const subs = node.children.filter((child) => child.subcontainer);
       const others = node.children.filter((child) => !child.subcontainer && child.type !== 'caption');
-      // Only panels of one image each; any other content keeps myst-to-tex's layout
-      if (!subs.every(panelImage) || others.some((child) => child.type !== 'legend')) return;
-      // The legend joins the caption, as myst-to-tex sets it
-      const caption = [...captionOf(node), ...others.flatMap((child) => child.children ?? [])];
-      const panels = subs.map((sub) => ({ sub, image: panelImage(sub), caption: captionOf(sub) }));
-      const env = fullWidth(node) ? 'figure*' : 'figure';
-      const panelTex = ({ sub, image, caption: text }) =>
-        [
-          `\\begin{subfigure}[t]{${widthFraction(image.width, subs.length).toFixed(3)}\\linewidth}`,
-          '\\centering',
-          // Read here, when myst-to-tex renders: the url is then the exported file's
-          `\\includegraphics[width=\\linewidth]{${image.url}}`,
-          `\\caption{${trimTex(renderTex(text, footnotes, file))}}${labelOf(sub) ? `\\label{${labelOf(sub)}}` : ''}`,
-          '\\end{subfigure}',
-        ].join('\n');
-      const tex = () =>
-        `\n\\begin{${env}}[!htbp]\n\\centering\n${panels.map(panelTex).join('\\hfill\n')}\n${captionTex(node, caption, footnotes, file)}\\end{${env}}\n\n`;
+      // Anything beside panels, caption and legend keeps myst-to-tex's layout
+      if (others.some((child) => child.type !== 'legend')) return;
+      const table = node.kind === 'table';
+      const panels = node.children.filter((child) => child.subcontainer).map(panelOf);
+      // A figure's legend joins its caption, as myst-to-tex sets it; a table's is its notes
+      const caption = table ? captionOf(node) : [...captionOf(node), ...legendOf(node)];
+      const notes = table ? legendOf(node) : [];
+      const env = `${table ? 'table' : 'figure'}${fullWidth(node) ? '*' : ''}`;
+      const tex = () => {
+        const head = captionTex(node, caption, footnotes, file);
+        const body = `${panelsTex(panels, table, footnotes, file)}\n`;
+        const inner = table ? `${head}${body}${legendTex(notes, footnotes, file)}` : `${body}${head}`;
+        return `\n\\begin{${env}}[!htbp]\n\\centering\n${inner}\\end{${env}}\n\n`;
+      };
       replace(ancestors.at(-1), node, lazyRawLatex(node, tex));
     });
   },
@@ -292,6 +457,7 @@ const ignoredImagesTransform = {
 // index.mjs runs boxed-floats after the other three, since it lifts the floats they make
 export const rawTables = { repair: 'raw-tables', transforms: [rawTablesTransform] };
 export const tableColumns = { repair: 'table-columns', transforms: [tableColumnsTransform] };
+export const tableNotes = { repair: 'table-notes', transforms: [tableNotesTransform] };
 export const subfigures = { repair: 'subfigures', transforms: [subfiguresTransform] };
 export const boxedFloats = { repair: 'boxed-floats', transforms: [boxedFloatsTransform] };
 export const ignoredImages = { repair: 'ignored-images', transforms: [ignoredImagesTransform] };

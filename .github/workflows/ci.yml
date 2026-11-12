@@ -294,7 +294,7 @@ jobs:
           has_opt() { printf '%s' "$class" | grep -q "[,[]$1[],]"; }
           # render LABEL KEY:VALUE...: one export option per pair; $fm replaces open_access: false,
           # which myst.yml would otherwise make true everywhere. The citation is REQUIRED: without
-          # one doc.bibliography stays empty and template.tex emits no \bibliographystyle.
+          # one doc.bibliography stays empty and template.tex sets no bibliography.
           render() {
             label=$1; shift
             opts=$(printf '    %s\n' "$@")

@@ -10,20 +10,45 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import pkg from '../package.json' with { type: 'json' };
-import { citationForms, doiLinks, partCitations } from './citations.mjs';
-import { blockBreaks, boxedFloats, ignoredImages, macros, partHeadings, rawTables, subfigures, tableColumns } from './floats.mjs';
+import { authoredBib, citationForms, doiLinks, partCitations } from './citations.mjs';
+import {
+  blockBreaks,
+  boxedFloats,
+  ignoredImages,
+  macros,
+  partHeadings,
+  rawTables,
+  subfigures,
+  tableColumns,
+  tableNotes,
+} from './floats.mjs';
 import { algorithmLines, claimFact, exercises, proofKinds, proofTitles, unnumberedProofs } from './proofs.mjs';
 import {
   labelCase,
   missingRefs,
+  pageLinks,
   rawRefs,
   sectionNumbering,
   stackedLabels,
   targetLabels,
+  unnumberedHeadings,
   unnumberedRefs,
   xref,
 } from './refs.mjs';
-import { footnotes, inlineRaws, linkedImages, listStart, quotes, smallcaps } from './text.mjs';
+import {
+  abbreviationSpaces,
+  enumerateLabels,
+  footnotes,
+  inlineRaws,
+  linkedImages,
+  listStart,
+  mathLabels,
+  quotations,
+  quotes,
+  smallcaps,
+  textRoles,
+  textSymbols,
+} from './text.mjs';
 
 const REPAIRS = [
   // Inline. doi-links restores its links before anything renders them, linked-images first;
@@ -33,15 +58,24 @@ const REPAIRS = [
   doiLinks,
   linkedImages,
   stackedLabels,
+  // unnumbered-headings strips `{-}` at document stage, before section-numbering and xref read
+  unnumberedHeadings,
   sectionNumbering,
   targetLabels,
   unnumberedRefs,
   xref,
   labelCase,
+  // math-labels writes `\label`s that missing-refs then resolves
+  mathLabels,
   missingRefs,
+  pageLinks,
   citationForms,
   partCitations,
+  authoredBib,
   rawRefs,
+  textSymbols,
+  abbreviationSpaces,
+  textRoles,
   // smallcaps before footnotes, which renders footnote bodies
   smallcaps,
   footnotes,
@@ -51,8 +85,12 @@ const REPAIRS = [
   // exercises before the proof repairs, which render what those hold.
   rawTables,
   tableColumns,
+  // table-notes after table-columns, whose tabular it follows, and before boxed-floats
+  tableNotes,
   subfigures,
   quotes,
+  quotations,
+  enumerateLabels,
   boxedFloats,
   ignoredImages,
   algorithmLines,

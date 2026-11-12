@@ -1,7 +1,153 @@
-// The running-text repairs: footnotes, quotes, smallcaps, linked-images, list-start and
-// inline-raws.
+// The running-text repairs: math-labels, text-symbols, abbreviation-spaces, footnotes, quotes,
+// quotations, smallcaps, text-roles, linked-images, enumerate-labels, list-start and inline-raws.
 
-import { collect, hasImage, isLazy, rawLatex, renderTex, replaceNode, siteSafe, texOnly } from './util.mjs';
+import fs from 'node:fs';
+import {
+  alpha,
+  collect,
+  cutText,
+  hasImage,
+  isLazy,
+  rawLatex,
+  renderTex,
+  replaceNode,
+  roman,
+  siteSafe,
+  splitTexts,
+  texEscape,
+  texOnly,
+  texSymbols,
+  texText,
+  textOf,
+  walk,
+} from './util.mjs';
+
+// ---------------------------------------------------------------------------------------------
+// math-labels
+// A labelled display holding a top-level amsmath environment (`align`, `gather`, `multline`,
+// `alignat`, `flalign`, `equation`, `eqnarray`) loses its `\label`: myst-to-tex writes such a
+// value verbatim and adds the label only around plain math (math.js, "labels may be stripped
+// previously"), so `[](#eq)` prints `(??)`. MyST also lifts the first per-line `\label{}` out of
+// the value to label the node, and deletes the rest ("Math node is already labeled"), so a link
+// to a second row's label prints nothing (or `??x` under missing-refs).
+//
+// The environment is re-read from the page source through `node.position`, labels and all, and
+// used when it matches the value with its labels taken out; the node's own label goes before
+// `\end{...}`, on the last row, as hand-written LaTeX puts it. The node becomes a block raw
+// node (the site keeps the math). An inline-stage repair that runs before missing-refs, which
+// then resolves a link to a row's label as `(\ref{x})`.
+
+const AMS = /^\\begin\{(equation|multline|gather|align|alignat|flalign|eqnarray)\}/;
+const LABEL = /\\label\{([^}]+)\}/g;
+const squash = (s) => s.replace(/\s+/g, '');
+
+// The lines of `file` from `position`, or '' for a part's synthetic path or a missing file
+function sourceLines(file, position, cache) {
+  if (!position?.start || !position?.end) return '';
+  if (!cache.has(file)) {
+    let lines = [];
+    try {
+      lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+    } catch {
+      // a frontmatter part's `<page>#parts.<name>` names no file
+    }
+    cache.set(file, lines);
+  }
+  return cache.get(file).slice(position.start.line - 1, position.end.line).join('\n');
+}
+
+// The environment with every label it had in the source and the node's own, or undefined when
+// there is no label to restore
+function labelledEnvironment(node, source) {
+  const value = (node.value ?? '').trim();
+  const env = value.match(AMS)?.[1];
+  const end = `\\end{${env}}`;
+  if (!env || !value.endsWith(end)) return undefined;
+  const block = new RegExp(`\\\\begin\\{${env}\\}[\\s\\S]*?\\\\end\\{${env}\\}`, 'g');
+  const found = [...source.matchAll(block)].find((m) => squash(m[0].replace(LABEL, '')) === squash(value));
+  let tex = found ? found[0] : value;
+  if (node.label && !tex.includes(`\\label{${node.label}}`)) {
+    tex = `${tex.slice(0, -end.length).trimEnd()} \\label{${node.label}}\n${end}`;
+  }
+  return tex === value ? undefined : tex;
+}
+
+const mathLabelsTransform = {
+  name: 'math-labels',
+  doc: 'Restores the labels of an amsmath environment in a display',
+  stage: 'project',
+  plugin: () => (tree, file) => {
+    const cache = new Map();
+    collect(tree, (node) => node.type === 'math' && node.enumerated !== false).forEach(({ node, parent, ancestors }) => {
+      if (!parent || ancestors.some((a) => a.type === 'table')) return;
+      const tex = labelledEnvironment(node, sourceLines(file.path, node.position, cache));
+      if (tex) replaceNode(parent, node, rawLatex(node, `\n${tex}\n\n`));
+    });
+  },
+};
+
+export const mathLabels = { repair: 'math-labels', transforms: [mathLabelsTransform] };
+
+// ---------------------------------------------------------------------------------------------
+// text-symbols
+// Characters released myst-to-tex writes wrongly in running text (utils.js `textReplacements`):
+// - the minus sign U+2212 becomes a hyphen (`symbols`), as does an ASCII hyphen opening a
+//   number, so "-0.30" prints a hyphen where the samples write `$-$0.30`;
+// - the arrows U+2190, U+2192, U+2194, U+21D0, U+21D2, U+21D4 (`arrows`) become `\rightarrow`
+//   and so on in text mode: "Missing $ inserted", forced through at exit 0. They are the only
+//   text replacements that are math commands; the math-only symbols get `$...$` already;
+// - three periods stay three periods, where the samples use `\ldots`.
+// Each becomes a texText node of `$-$`, `$\rightarrow$` or `\ldots{}`, the site keeping the
+// character (util.texSymbols, which table-columns shares for table cells). An inline repair.
+
+const textSymbolsTransform = {
+  name: 'text-symbols',
+  doc: 'LaTeX for minus signs, arrows and ellipses in running text',
+  stage: 'project',
+  plugin: () => (tree) => splitTexts(tree, (value, { start }) => cutText(value, texSymbols(value, start))),
+};
+
+export const textSymbols = { repair: 'text-symbols', transforms: [textSymbolsTransform] };
+
+// ---------------------------------------------------------------------------------------------
+// abbreviation-spaces
+// econsocart keeps `\nonfrenchspacing` under the `te` option alone (econsocart.cls, "\ifte@layout"),
+// so in Theoretical Economics a period after a lowercase letter ends a sentence: "e.g. this"
+// gets a sentence space. The TE sample asks for `e.g.\ this`, which Markdown cannot write.
+// The space after a closed list of abbreviations becomes a texText `\ `, an interword space,
+// which under `\frenchspacing` (ecta, qe) is the space LaTeX sets anyway, so it applies to all
+// three journals. The second list often ends a sentence, so it is kept before a capital.
+
+const ABBREVIATIONS = [
+  ...['e.g.', 'i.e.', 'cf.', 'vs.', 'viz.', 'resp.', 'Dr.', 'Mr.', 'Mrs.', 'Ms.', 'Prof.'],
+  ...['Fig.', 'Figs.', 'Eq.', 'Eqs.', 'Sec.', 'Ch.', 'Thm.', 'Prop.', 'Def.', 'Vol.', 'pp.'],
+];
+const SENTENCE_ENDS = ['etc.', 'et al.', 'approx.', 'p.', 'no.'];
+const abbreviationPattern = (list) => list.map((a) => a.replace(/\./g, '\\.').replace(/ /g, '\\s+')).join('|');
+const ABBREVIATION = new RegExp(
+  `(?<![\\p{L}\\p{N}.])(?:(${abbreviationPattern(ABBREVIATIONS)})|(${abbreviationPattern(SENTENCE_ENDS)}))(\\s+)`,
+  'giu',
+);
+
+export function abbreviationCuts(value, next = '') {
+  const cuts = [];
+  for (const m of value.matchAll(ABBREVIATION)) {
+    const space = m.index + m[0].length - m[3].length;
+    const after = value.charAt(m.index + m[0].length) || next;
+    if (!after || (m[2] && after !== after.toLowerCase())) continue;
+    cuts.push({ index: space, length: m[3].length, tex: '\\ ' });
+  }
+  return cuts;
+}
+
+const abbreviationSpacesTransform = {
+  name: 'abbreviation-spaces',
+  doc: 'An interword space after an abbreviation, for the nonfrenchspacing of TE',
+  stage: 'project',
+  plugin: () => (tree) => splitTexts(tree, (value, { next }) => cutText(value, abbreviationCuts(value, next))),
+};
+
+export const abbreviationSpaces = { repair: 'abbreviation-spaces', transforms: [abbreviationSpacesTransform] };
 
 // ---------------------------------------------------------------------------------------------
 // footnotes
@@ -84,9 +230,13 @@ export const footnotes = { repair: 'footnotes', transforms: [footnotesTransform]
 // writes as a `figure` float holding `quote` and `\caption*{Name}`. econsocart ignores the star:
 // the quote floats away from its paragraph and prints a phantom "FIGURE 0." under it, at exit 0.
 //
-// Each such container is rendered as a plain `quote` environment with the attribution set flush
-// right on its last line, no float, and swapped for a raw node (util.rawLatex), so the site keeps
-// its quote and attribution. A block repair: it renders a subtree, so inline repairs run first.
+// Each such container is rendered as a plain `quote` environment (`quotation` for one of several
+// paragraphs, see quotations) with the attribution set flush right on its last line, no float,
+// and swapped for a raw node (util.rawLatex), so the site keeps its quote and attribution. A
+// block repair: it renders a subtree, so inline repairs run first.
+
+// The samples' environment for a quote: `quotation` for several paragraphs, else `quote`
+const quoteEnvironment = (quote) => (quote.children.filter((child) => child.type === 'paragraph').length > 1 ? 'quotation' : 'quote');
 
 const quotesTransform = {
   name: 'quotes',
@@ -101,13 +251,39 @@ const quotesTransform = {
       const quote = node.children.find((child) => child.type === 'blockquote');
       const caption = node.children.find((child) => child.type === 'caption');
       if (!quote || !caption) return;
-      const tex = () => `\n\\begin{quote}\n${render(quote.children)}\n\\par\\hfill---${render(caption.children)}\n\\end{quote}\n\n`;
+      const env = quoteEnvironment(quote);
+      const tex = () => `\n\\begin{${env}}\n${render(quote.children)}\n\\par\\hfill---${render(caption.children)}\n\\end{${env}}\n\n`;
       replaceNode(parent, node, rawLatex(node, tex));
     });
   },
 };
 
 export const quotes = { repair: 'quotes', transforms: [quotesTransform] };
+
+// ---------------------------------------------------------------------------------------------
+// quotations
+// A blockquote of several paragraphs becomes myst-to-tex's `quote`, which econsocart sets with
+// no paragraph indent and no space between paragraphs (econsocart.cfg, `\parsep=\z@`), so the
+// break between them vanishes. The samples write such a quote as `quotation`, which indents
+// each paragraph. Each becomes a block raw node of `quotation`, rendered when read; the site
+// keeps the blockquote. An attributed one is the quotes repair's. A block repair.
+
+const quotationsTransform = {
+  name: 'quotations',
+  doc: 'LaTeX quotation for a blockquote of several paragraphs',
+  stage: 'project',
+  plugin: (_opts, utils) => (tree, file) => {
+    const found = collect(tree, (node) => node.type === 'blockquote' && quoteEnvironment(node) === 'quotation');
+    const footnotes = utils.selectAll('footnoteDefinition', tree);
+    found.forEach(({ node, parent }) => {
+      if (!parent || (parent.type === 'container' && parent.kind === 'quote')) return;
+      const tex = () => `\n\\begin{quotation}\n${renderTex(node.children, footnotes, file).trim()}\n\\end{quotation}\n\n`;
+      replaceNode(parent, node, rawLatex(node, tex));
+    });
+  },
+};
+
+export const quotations = { repair: 'quotations', transforms: [quotationsTransform] };
 
 // ---------------------------------------------------------------------------------------------
 // smallcaps
@@ -144,6 +320,58 @@ const smallcapsTransform = {
 export const smallcaps = { repair: 'smallcaps', transforms: [smallcapsTransform] };
 
 // ---------------------------------------------------------------------------------------------
+// text-roles
+// Markdown has no syntax for sans serif or for the TeX logos, which the samples use (`\textsf`,
+// `\LaTeX`, `\LaTeXe`, `\TeX`); a `{raw:latex}` role is invisible on the site. Two roles:
+// - {sf}`words` is a span styled sans serif for the site, its children bracketed by `\textsf{`
+//   and `}` as smallcaps does, so both outputs render them natively;
+// - {logo}`LaTeX` (or `TeX`, `LaTeX2e`) becomes a texText node: `\LaTeX{}` for LaTeX, the name
+//   as plain text on the site. An unknown name stays text, with a warning. The role returns a
+//   span holding the LaTeX, swapped at project stage: MyST parses the `value` of a raw node a
+//   role returns into a paragraph.
+
+// The site's LaTeX2e reads "LaTeX 2" and a Greek epsilon, built from its code point (ASCII file)
+const LOGOS = {
+  TeX: ['\\TeX{}', 'TeX'],
+  LaTeX: ['\\LaTeX{}', 'LaTeX'],
+  LaTeX2e: ['\\LaTeXe{}', `LaTeX 2${String.fromCharCode(0x3b5)}`],
+};
+
+const sfRole = {
+  name: 'sf',
+  alias: ['textsf'],
+  doc: 'Sans serif text, `\\textsf` in LaTeX',
+  body: { type: 'myst', required: true },
+  run: (data) => [{ type: 'span', style: { fontFamily: 'sans-serif' }, children: [texOnly('\\textsf{'), ...data.body, texOnly('}')] }],
+};
+
+const logoRole = {
+  name: 'logo',
+  doc: 'The TeX, LaTeX or LaTeX2e logo',
+  body: { type: String, required: true },
+  run: (data, vfile) => {
+    const name = String(data.body ?? '').trim();
+    const logo = LOGOS[name] ?? LOGOS[name.replace(/e$/, '2e')];
+    if (logo) return [{ type: 'span', econsocTex: logo[0], children: [{ type: 'text', value: logo[1] }] }];
+    vfile?.message(`econsoc: {logo} knows ${Object.keys(LOGOS).join(', ')}, not "${name}"`, data.node);
+    return [{ type: 'text', value: name }];
+  },
+};
+
+const logosTransform = {
+  name: 'text-roles',
+  doc: 'Swaps each {logo} span for LaTeX that the site shows as text',
+  stage: 'project',
+  plugin: () => (tree) => {
+    collect(tree, (node) => node.type === 'span' && node.econsocTex).forEach(({ node, parent }) => {
+      if (parent) replaceNode(parent, node, texText(node.econsocTex, textOf(node)));
+    });
+  },
+};
+
+export const textRoles = { repair: 'text-roles', roles: [sfRole, logoRole], transforms: [logosTransform] };
+
+// ---------------------------------------------------------------------------------------------
 // linked-images
 // Images inside links: a badge `[![DOI](badge.svg)](https://doi.org/...)`. Released myst-to-tex
 // (1.12.0) ends every `\includegraphics` with a blank line, as for a figure's image, so a linked
@@ -172,6 +400,122 @@ const linkedImagesTransform = {
 };
 
 export const linkedImages = { repair: 'linked-images', transforms: [linkedImagesTransform] };
+
+// ---------------------------------------------------------------------------------------------
+// enumerate-labels
+// The samples label lists `(i)`, `(ii)` (`\begin{enumerate}[(ii)]` with `\item[(i)]`, "do not
+// use (1), (2)"), or leave them unlabelled (`\item[]`); a Markdown ordered list carries only a
+// start, so every list prints "1.". A directive wraps one list and names its labels:
+//
+//   :::{enumerate} (i)        any of i, I, a, A, 1 with text around it, or `none`
+//   1. The first condition.
+//   :::
+//
+// On the site the list loses its own numbers (SITE_LIST) and each item opens with a span of its
+// label. At project stage the list becomes a block raw node,
+// rendered when read: `\begin{enumerate}[{widest}]`, the label width econsocart takes, then
+// `\item[{(i)}]` per item, with `\@currentlabel` set to the label for an item a link targets,
+// so `\ref` prints "(i)". Each item keeps its label as `econsocLabel`. A block repair.
+
+const COUNTER_STYLES = {
+  1: String,
+  i: roman,
+  I: (n) => roman(n).toUpperCase(),
+  a: alpha,
+  A: (n) => alpha(n).toUpperCase(),
+};
+const LABEL_PATTERN = /^([^iIaA1]*)([iIaA1])([^iIaA1]*)$/;
+
+// The label of each of `count` items from `start`, or undefined for a pattern with no counter
+function itemLabels(pattern, count, start) {
+  if (pattern === 'none') return Array(count).fill('');
+  const m = pattern.match(LABEL_PATTERN);
+  if (!m) return undefined;
+  return Array.from({ length: count }, (_, i) => `${m[1]}${COUNTER_STYLES[m[2]](start + i)}${m[3]}`);
+}
+
+const ITEM_LABEL = 'econsocItemLabel';
+// The theme draws <ol> with no class of the node's, so the list sits in a div of the theme's
+// Tailwind classes: `not-prose` drops the prose numbers (preflight lists have none), the rest
+// restore an indent and the space around it
+const SITE_LIST = 'not-prose pl-4 my-5';
+
+const enumerateDirective = {
+  name: 'enumerate',
+  doc: 'An ordered list labelled (i), (a), ... as the argument says, or unlabelled with `none`',
+  arg: { type: String, doc: 'The first label, such as (i), (a), i., A), or none' },
+  body: { type: 'myst', required: true },
+  run: (data, vfile) => {
+    const pattern = String(data.arg ?? '(i)').trim();
+    const [list] = data.body ?? [];
+    const labels = list?.type === 'list' && data.body.length === 1 && itemLabels(pattern, list.children.length, list.start ?? 1);
+    if (!labels) {
+      vfile?.message(`econsoc: {enumerate} takes one list and a label such as (i), not "${pattern}"`, data.node);
+      return data.body ?? [];
+    }
+    list.ordered = true;
+    list.econsocLabels = true;
+    list.children.forEach((item, i) => {
+      item.econsocLabel = labels[i];
+      if (!labels[i]) return;
+      // A span, which LaTeX never renders: the list is written whole at project stage
+      const mark = { type: 'span', [ITEM_LABEL]: true, children: [{ type: 'text', value: `${labels[i]} ` }] };
+      // The first paragraph, after a `(label)=` target, which MyST later attaches to it
+      const first = item.children?.find((child) => child.type !== 'mystTarget');
+      if (first?.type === 'paragraph') first.children.unshift(mark);
+      else item.children = [{ type: 'paragraph', children: [mark] }, ...(item.children ?? [])];
+    });
+    return [{ type: 'div', class: SITE_LIST, children: [list] }];
+  },
+};
+
+// The LaTeX of a labelled list: each item's children without the site's label
+function labelledListTex(list, footnotes, file) {
+  const labels = list.children.map((item) => item.econsocLabel ?? '');
+  const widest = labels.reduce((a, b) => (b.length > a.length ? b : a), '');
+  const items = list.children.map((item) => {
+    const children = (item.children ?? []).map((child) =>
+      child.type === 'paragraph' ? { ...child, children: child.children.filter((c) => !c[ITEM_LABEL]) } : child,
+    );
+    const label = texEscape(item.econsocLabel ?? '');
+    const target = children[0]?.identifier ? `\\phantomsection\\expandafter\\def\\csname @currentlabel\\endcsname{${label}}` : '';
+    return `\\item[{${label}}]${target} ${renderTex(children, footnotes, file).trim()}`;
+  });
+  return `\n\\begin{enumerate}[{${texEscape(widest)}}]\n${items.join('\n')}\n\\end{enumerate}\n\n`;
+}
+
+const enumerateLabelsTransform = {
+  name: 'enumerate-labels',
+  doc: 'LaTeX for a list the {enumerate} directive labels',
+  stage: 'project',
+  plugin: (_opts, utils) => (tree, file) => {
+    const footnotes = utils.selectAll('footnoteDefinition', tree);
+    const labels = new Map();
+    collect(tree, (node) => node.type === 'list' && node.econsocLabels).forEach(({ node, parent }) => {
+      node.children.forEach((item) => {
+        const first = item.children?.[0];
+        if (first?.identifier && item.econsocLabel) labels.set(first.identifier, item.econsocLabel);
+      });
+      if (parent) replaceNode(parent, node, rawLatex(node, () => labelledListTex(node, footnotes, file)));
+    });
+    // The site's link to such an item reads its label, as `\ref` does, where target-labels
+    // wrote the item's position (inside the raw nodes of the reference repairs too)
+    walk(tree, (node) => {
+      const label = node.type === 'crossReference' && !node.remote ? labels.get(node.identifier) : undefined;
+      if (label === undefined) return;
+      node.enumerator = label;
+      const authored = node.authoredText ?? '';
+      if (authored.includes('%s')) node.children = [{ type: 'text', value: authored.replaceAll('%s', label) }];
+      else if (!authored) node.children = [{ type: 'text', value: `Item ${label}` }];
+    });
+  },
+};
+
+export const enumerateLabels = {
+  repair: 'enumerate-labels',
+  directives: [enumerateDirective],
+  transforms: [enumerateLabelsTransform],
+};
 
 // ---------------------------------------------------------------------------------------------
 // list-start

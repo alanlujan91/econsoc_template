@@ -40,7 +40,7 @@ read -ra REPAIRS < <(cd plugins && node --input-type=module -e \
     "import { repairs } from './econsoc.mjs'; console.log(repairs.join(' '))")
 [ "${#REPAIRS[@]}" -gt 0 ] || die "plugins/econsoc.mjs names no repairs"
 # Repairs asserted only by code in failures(), not by a TEX_EXPECT or TEX_FORBID line
-CODED_ONLY=(part-citations boxed-floats ignored-images inline-raws block-breaks)
+CODED_ONLY=(part-citations boxed-floats ignored-images inline-raws block-breaks quotations)
 # Repairs whose assertions read the site; their rejection runs build it too
 SITE_REPAIRS=(inline-raws)
 
@@ -112,7 +112,7 @@ TEX_EXPECT=(
     'part-headings|supplement.tex|\section{First appendix section}\label{app-first}'
     'part-headings|supplement.tex|\subsection{Nested appendix subsection}'
     'raw-tables|article.tex|\caption[]{A raw caption.}\label{tbl-raw}'
-    'table-columns|article.tex|\begin{tabularx}{\linewidth}{ll>{\raggedright\arraybackslash}X}'
+    'table-columns|article.tex|\begin{tabularx}{\linewidth}{lr>{\raggedright\arraybackslash}X}'
     'table-columns|article.tex|\begin{tabular}{lrc}'
     'subfigures|article.tex|\begin{subfigure}[t]{0.400\linewidth}'
     'subfigures|article.tex|\caption[]{Two panels.}\label{fig-multi}'
@@ -134,6 +134,53 @@ TEX_EXPECT=(
     'macros|article.tex|\providecommand{\HRat}{H}'
     'macros|article.tex|\providecommand{\Gfac}[1]{\Gamma_{#1}}'
     'macros|article.tex|\providecommand{\PageMac}{P}'
+    'citation-forms|article.tex|CITEROLES: \citep*{aumannhartperry1997}, \citet*{aumannhartperry1997}, \Citet{vonneumann1944}, \Citet*{aumannhartperry1997}, \citeauthor*{aumannhartperry1997}, \Citeauthor{vonneumann1944}, (\citeauthor*{aumannhartperry1997}), \citealp*{aumannhartperry1997}, \citealp*{vonneumann1944}, \citealp{nash1950}, \citealp{debreu1959}, \citet{nash1950}.'
+    # the paper's own entries, verbatim, in place of the re-serialized main.bib
+    'authored-bib|article.tex|\begin{filecontents*}[overwrite]{\jobname-econsoc.bib}'
+    'authored-bib|article.tex|\gdef\econsocbibliography{\jobname-econsoc}'
+    'authored-bib|article.tex|title   = {Correlated Equilibrium as an Expression of Bayesian Rationality},'
+    'authored-bib|article.tex|@incollection{wittman1990,'
+    'authored-bib|article.tex|@string{cup = {Cambridge University Press}}'
+    'authored-bib|supplement.tex|@book{rawonly2001,'
+    'raw-tables|article.tex|\legend{RAWNOTE: a note under the raw table.}'
+    'table-notes|article.tex|\caption[]{A noted caption.}'
+    'table-notes|article.tex|\legend{TABNOTE-ONE: the first note.\endgraf TABNOTE-TWO: the second note.}'
+    'table-columns|article.tex|Coef & \multicolumn{1}{c}{Est} & Range \\'
+    'table-columns|article.tex|beta0 & $-$0.30 & 1-2 \\'
+    'table-columns|article.tex|beta1 & $-$12.29 & n-a \\'
+    'table-columns|article.tex|\multirow{2}{*}{Model} & \multicolumn{2}{c}{Quantile} \\'
+    'table-columns|article.tex|\cmidrule(lr){2-3}'
+    'table-columns|article.tex|\multirow{2}{*}{Tall} & 0.1 & 0.9 \\'
+    'subfigures|article.tex|\phantomcaption\label{fig-panels-pair}'
+    'subfigures|article.tex|\subcaption*{(\subref*{fig-panels-pair}) A pair of images.}'
+    'subfigures|article.tex|{\footnotesize PANELNOTE: a note under one panel.\par}'
+    'subfigures|article.tex|\begin{subtable}[t]{0.480\linewidth}'
+    'subfigures|article.tex|\legend{SUBTABLENOTE: the note under both.}'
+    'unnumbered-headings|article.tex|\section*{Remarks on $\beta$}'
+    'unnumbered-headings|article.tex|\subsection*{Plain remarks}'
+    'unnumbered-headings|article.tex|\section*{Single appendix}'
+    'unnumbered-headings|article.tex|UNNUMHEAD: Remarks on $\beta$, \hyperref[sec-remarks]{the remarks}, Remarks~\textbf{??}sec-remarks, Plain~remarks, \hyperref[app-single]{Appendix}.'
+    'unnumbered-refs|article.tex|UNNUMHEAD: Remarks on $\beta$,'
+    'page-links|article.tex|PAGELINK: see the supplement page and the \textit{short} note.'
+    # a labelled align and gather keep their label, an align its per-row labels
+    'math-labels|article.tex|c &= d \label{eq-align}'
+    'math-labels|article.tex|e &= f \label{eq-row1} \\'
+    'math-labels|article.tex|g &= h \label{eq-row2}'
+    'math-labels|article.tex|p = q \label{eq-gather}'
+    'math-labels|article.tex|MATHLABELS: (\ref{eq-align}), (\ref{eq-row1}), (\ref{eq-row2}) and (\ref{eq-gather}).'
+    'text-symbols|article.tex|SYMBOLS: $-$0.30 and $-$0.45, not 10-20 or COVID-19, x $-$ y; a $\rightarrow$ b $\Rightarrow$ c $\leftarrow$ d $\leftrightarrow$ e $\Leftrightarrow$ f $\Leftarrow$ g; wait\ldots{} then.'
+    'abbreviation-spaces|article.tex|ABBREVS: e.g.\ this, i.e.\ that, cf.\ Smith, vs.\ them, etc.\ and Smith et al.\ (2000), etc. The end.'
+    'text-roles|article.tex|ROLES: the \textsf{Sans Serif} role and the \LaTeX{}, \TeX{} and \LaTeXe{} logos.'
+    'enumerate-labels|article.tex|\begin{enumerate}[{(ii)}]'
+    'enumerate-labels|article.tex|\item[{(i)}] ENUM-FIRST condition.'
+    'enumerate-labels|article.tex|\item[{(ii)}]\phantomsection\expandafter\def\csname @currentlabel\endcsname{(ii)} \label{enum-second}ENUM-SECOND condition.'
+    'enumerate-labels|article.tex|ENUMREF: Condition~\ref{enum-second}.'
+    # template.tex lines, which only the full run reads (rejection runs read repairs' lines): a
+    # particle and a suffix in the author block, Definition/Example/Remark upright, emphasis
+    'template|article.tex|\fnms{Vincent}~\particle{van}~\snm{Gogh}'
+    'template|article.tex|\snm{Lucas}, Jr.'
+    'template|article.tex|\es@upright{definition}\es@upright{example}\es@upright{remark}'
+    'template|article.tex|\appto\th@plain{\let\textit\emph}'
 )
 
 # repair|file|text a .tex must not contain, read as TEX_EXPECT reads it
@@ -151,14 +198,23 @@ TEX_FORBID=(
     'proof-titles|article.tex|[Decay no faster than ]'
     'proof-titles|article.tex|[Proof of ]'
     'proof-titles|article.tex|\begin{remark}[Inner words]'
+    'unnumbered-headings|article.tex|\{-\}'
+    'unnumbered-headings|article.tex|\{.unnumbered\}'
+    'page-links|article.tex|\href{/'
 )
 
 # part-citations: the article cites exactly these, aumann1987 and peck1994 from its parts alone
-CITED="aumann1987 debreu1959 enelow1984 nash1950 peck1994"
+CITED="aumann1987 aumannhartperry1997 debreu1959 enelow1984 nash1950 peck1994 vonneumann1944 wittman1990"
 
 # Parent node types whose children the site renders inline, where a raw node with children
 # (a <div>) breaks the line: inline-raws must leave none
 PHRASING='["paragraph","heading","emphasis","strong","underline","delete","link","span","superscript","subscript","smallcaps","keyboard","abbreviation","crossReference","admonitionTitle","tableCell","definitionTerm","captionNumber"]'
+
+# Characters pdftotext prints that this file keeps out of its source, to stay ASCII
+MINUS=$(printf '\342\210\222')
+LQUOTE=$(printf '\342\200\234')
+RQUOTE=$(printf '\342\200\235')
+SZLIG=$(printf '\303\237')
 
 # file|text a PDF must contain, whitespace collapsed (pdftotext splits small caps: "A SSUMPTION")
 PDF_EXPECT=(
@@ -187,7 +243,8 @@ PDF_EXPECT=(
     'article.pdf|MIXED: Section 2.3, (3), Sec 2.3, Section 2.3, Section 2, Remark 1, Remark 1, Re'
     'article.pdf|EXREFS: Exercise 1 and (4).'
     'article.pdf|SOLREFS: Solution to Exercise 1, the solution, Solution ??sol-solve.'
-    'article.pdf|LAIM (Unnumbered). NONUMBER: a list that opens at 3. 3. The third claim. 4. The fourth claim, with a list from 2: (b) A nested claim.'
+    'article.pdf|LAIM (Unnumbered). NONUMBER: a list that opens at 3.'
+    'article.pdf|3. The third claim. 4. The fourth claim, with a list from 2: (b) A nested claim.'
     'article.pdf|HEOREM (Plain unnumbered). NONUMBER-THM'
     'article.pdf|LISTREFS: Item 3, Item 4(b), the claim, ??thm-unnum.'
     'article.pdf|four, 1. LISTCELL'
@@ -203,8 +260,35 @@ PDF_EXPECT=(
     'article.pdf|MALL C APS role and the Ctrl key.'
     'article.pdf|H + P +'
     'article.pdf|consumption 12 Real nondurable consumption per capita'
-    'article.pdf|MULTIFIG: see Figure 4.'
-    'article.pdf|BOXFIG: see Figure 5.'
+    'article.pdf|MULTIFIG: see Figure 5.'
+    'article.pdf|BOXFIG: see Figure 6.'
+    'article.pdf|Correlated equilibrium as an expression of'
+    'article.pdf|In Advances in the Spatial Theory of Voting (James Enelow and Melvin Hinich, eds.)'
+    'article.pdf|CITEROLES: (Aumann, Hart, and Perry, 1997), Aumann, Hart, and Perry (1997), Von Neumann and Morgenstern (1944)'
+    'supplement.pdf|RAWCITE: only raw LaTeX cites Rawson (2001) here.'
+    'supplement.pdf|Rawson, Ruth (2001), Cited Only in Raw LaTeX.'
+    'article.pdf|Note: RAWNOTE: a note under the raw table.'
+    'article.pdf|TABLE 3. A noted caption. Name Value alpha 1.25 Note: TABNOTE-ONE:'
+    'article.pdf|TABNOTE-TWO: the second note.'
+    'article.pdf|TABLE 4. A spanned caption. Quantile Model 2.5% 97.5% SPANROW'
+    'article.pdf|PANELS: see Figure 4, Figure 4a, Figure 4b and Figure 4d.'
+    'article.pdf|Note: SUBTABLENOTE: the note under both.'
+    'article.pdf|the remarks, Remarks ??sec-remarks, Plain remarks, Ap'
+    'article.pdf|Plain remarks UNNUMBERED-SUB'
+    'article.pdf|PPENDIX : S INGLE APPENDIX SINGLEAPP'
+    'article.pdf|PAGELINK: see the supplement page and the short note.'
+    'article.pdf|MATHLABELS: (6), (7), (8) and (9).'
+    "article.pdf|SYMBOLS: ${MINUS}0.30 and ${MINUS}0.45, not 10-20 or COVID-19, x ${MINUS} y;"
+    'article.pdf|wait. . . then.'
+    'article.pdf|ROLES: the Sans Serif role and the LATEX, TEX and LATEX 2'
+    'article.pdf|(i) ENUM-FIRST condition. (ii) ENUM-SECOND condition. ENUMREF: Condition (ii).'
+    # the template: a particle and a suffix (small caps split), curly quotes for straight ones,
+    # letters past Latin-1 (pdftotext writes the o of \H{o} with its accent after it)
+    'article.pdf|V INCENT VAN G OGH'
+    'article.pdf|LUCAS , J R .'
+    "supplement.pdf|Supplement to ${LQUOTE}Main article${RQUOTE}"
+    'article.pdf|UNICODE: Ko'
+    "article.pdf|Stra${SZLIG}e"
     'nonum.pdf|NONUM: Second part, Section ??n-second.'
     'nonum.pdf|ECOND PART 1 A sub part'
     'nonum.pdf|NONUM-SUB: Section 1, the sub part, ??n-eq, Equation ??n-eq.'
@@ -213,7 +297,7 @@ PDF_EXPECT=(
 )
 
 # Environments after which LaTeX sets the next text as the same paragraph (block-breaks)
-export ENVS='theorem|lemma|corollary|proposition|definition|example|remark|axiom|conjecture|observation|proof|assumption|algorithm|criterion|property|claim|fact|exercise|solution|quote'
+export ENVS='theorem|lemma|corollary|proposition|definition|example|remark|axiom|conjecture|observation|proof|assumption|algorithm|criterion|property|claim|fact|exercise|solution|quote|quotation'
 
 # The lines myst's log holds when a LaTeX run went wrong at exit 0: an error latexmk forced
 # through, or a reference LaTeX could not resolve
@@ -301,6 +385,15 @@ failures() {
         grep -qF 'the note of citation debreu1959 holds "@nash1950"' "$dir/_build/check.log" ||
             echo "the build did not warn of the citation key inside a citation note"
     fi
+    # A quote of two paragraphs is a quotation, attributed (quotes) or not (quotations)
+    if mine quotations; then
+        grep -Pzq '\\begin\{quotation\}\nQUOTATION-ONE first paragraph\.\n\nQUOTATION-TWO' <<<"${body[article.tex]}" ||
+            echo "article.tex sets the two-paragraph quote QUOTATION-ONE outside a quotation"
+    fi
+    if mine quotes; then
+        grep -Pzq '\\begin\{quotation\}\nQUOTEATTR-ONE first paragraph\.\n\nQUOTEATTR-TWO' <<<"${body[article.tex]}" ||
+            echo "article.tex sets the attributed two-paragraph quote QUOTEATTR-ONE outside a quotation"
+    fi
     if mine ignored-images; then
         grep -qF 'Image _build/img/ignored_figure.pdf is gitignored' "$dir/_build/check.log" ||
             echo "the build did not warn of the gitignored image"
@@ -335,7 +428,7 @@ echo "OK: ${#TEX_EXPECT[@]} expected and ${#TEX_FORBID[@]} forbidden .tex lines,
 page=$FIXTURE/_build/site/content/index.json # article.md, the first page in the toc
 [ -f "$page" ] || die "no site page at $page"
 kinds=$(jq -r '[.mdast | .. | objects | select(.type == "proof") | .kind] | unique | join(" ")' "$page")
-[ "$kinds" = "algorithm assumption claim criterion example fact proof property proposition remark theorem" ] ||
+[ "$kinds" = "algorithm assumption claim criterion definition example fact proof property proposition remark theorem" ] ||
     die "site proof kinds {$kinds}"
 jq -e '[.mdast | .. | objects | select(.data.partCitations? or .data.rawRefs?)] | length == 0' "$page" >/dev/null ||
     die "the site page still holds a hidden block of the repairs"

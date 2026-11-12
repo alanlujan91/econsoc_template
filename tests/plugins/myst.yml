@@ -2,8 +2,13 @@ version: 1
 project:
   title: Plugin fixture
   short_title: Plugins
+  # The second and third authors probe the template's particle and suffix
   authors:
     - name: A. Author
+      affiliations: [inst]
+    - name: Vincent van Gogh
+      affiliations: [inst]
+    - name: {given: George, family: Lucas, suffix: Jr.}
       affiliations: [inst]
   affiliations:
     - id: inst

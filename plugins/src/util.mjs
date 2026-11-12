@@ -94,6 +94,105 @@ export const isLazy = (node) => Boolean(Object.getOwnPropertyDescriptor(node, 't
 // LaTeX the site never shows: a raw node with neither children nor `value`
 export const texOnly = (tex) => ({ type: 'raw', lang: 'latex', tex });
 
+// A raw node LaTeX writes as `tex` while the site and Typst show the plain `text`: the theme
+// draws a childless raw node as a <span> of its `value`, and myst-to-typst writes its `typst`.
+// Having no children, it needs no `\iffalse` copy (inline-raws). An empty `tex` is site only.
+export const texText = (tex, text) => ({ type: 'raw', lang: 'latex', tex, typst: text, value: text });
+
+// Nodes whose text is not written through myst-to-tex's text escaping, or whose cells
+// table-columns rewrites itself, so the text repairs leave them alone
+const TEXT_SKIP = new Set(['raw', 'crossReference', 'cite', 'citeGroup', 'inlineCode', 'code', 'math', 'inlineMath', 'table']);
+
+// Calls `split(value, { start, next })` on every text node outside TEXT_SKIP and a link that
+// prints its own URL, and swaps the node for the nodes it returns. `start` says whether the
+// text opens a word, `next` is the first character after it in the parent.
+export function splitTexts(node, split) {
+  const children = node.children;
+  if (!children || TEXT_SKIP.has(node.type)) return;
+  if (node.type === 'link' && children.length === 1 && children[0].value === node.url) return;
+  for (let i = children.length - 1; i >= 0; i--) {
+    const child = children[i];
+    if (child.type !== 'text') {
+      splitTexts(child, split);
+      continue;
+    }
+    const start = i === 0 || /\s$/.test(textOf(children[i - 1]));
+    const next = i + 1 < children.length ? textOf(children[i + 1]).charAt(0) : '';
+    const nodes = split(child.value ?? '', { start, next });
+    if (nodes) children.splice(i, 1, ...nodes);
+  }
+}
+
+// The text cut at each `{ index, length, tex }` (in order, not overlapping) into text nodes and
+// texText nodes, which show the cut text on the site; null when there is no cut
+export function cutText(value, cuts) {
+  if (!cuts.length) return null;
+  const nodes = [];
+  let at = 0;
+  for (const { index, length, tex } of cuts) {
+    if (index > at) nodes.push({ type: 'text', value: value.slice(at, index) });
+    nodes.push(texText(tex, value.slice(index, index + length)));
+    at = index + length;
+  }
+  if (at < value.length) nodes.push({ type: 'text', value: value.slice(at) });
+  return nodes;
+}
+
+// The characters myst-to-tex writes wrongly in text (text.mjs, text-symbols): the minus sign
+// U+2212 and a hyphen opening a number, six arrows written as math commands, three periods.
+// Built from code points, to keep this file ASCII.
+export const MINUS_SIGN = String.fromCharCode(0x2212);
+const ARROWS = Object.fromEntries(
+  [
+    [0x2190, '\\leftarrow'],
+    [0x2192, '\\rightarrow'],
+    [0x2194, '\\leftrightarrow'],
+    [0x21d0, '\\Leftarrow'],
+    [0x21d2, '\\Rightarrow'],
+    [0x21d4, '\\Leftrightarrow'],
+  ].map(([code, tex]) => [String.fromCharCode(code), tex]),
+);
+const SYMBOL = new RegExp(`${MINUS_SIGN}|-(?=\\.?\\d)|[${Object.keys(ARROWS).join('')}]|\\.\\.\\.`, 'g');
+// What an ASCII hyphen must follow to open a number: a word start
+const NUMBER_START = /[\s([{/;:=,]$/;
+
+// The cuts of `value` for each symbol myst-to-tex writes wrongly; `start` says whether the
+// value opens a word (an ASCII hyphen there opens a number)
+export function texSymbols(value, start = true) {
+  const cuts = [];
+  for (const m of value.matchAll(SYMBOL)) {
+    const s = m[0];
+    if (s === '-' && !(m.index === 0 ? start : NUMBER_START.test(value.slice(0, m.index)))) continue;
+    const tex = s === '...' ? '\\ldots{}' : ARROWS[s] ? `$${ARROWS[s]}$` : '$-$';
+    cuts.push({ index: m.index, length: s.length, tex });
+  }
+  return cuts;
+}
+
+// List counters as LaTeX prints them: lowercase roman, and a letter from 1 = a (wrapping at z)
+const ROMAN = [['m', 1000], ['cm', 900], ['d', 500], ['cd', 400], ['c', 100], ['xc', 90], ['l', 50], ['xl', 40]];
+ROMAN.push(['x', 10], ['ix', 9], ['v', 5], ['iv', 4], ['i', 1]);
+export function roman(n) {
+  let out = '';
+  for (const [s, v] of ROMAN) for (; n >= v; n -= v) out += s;
+  return out;
+}
+export const alpha = (n) => String.fromCharCode(96 + (((n - 1) % 26) + 1));
+
+// A YAML value that may be one item or a list of them, as a list
+export const asList = (value) => (Array.isArray(value) ? value : value == null ? [] : [value]);
+
+// Files under `dir` whose names pass `test`, skipping what MyST skips (dot files, _build, node_modules)
+export function filesUnder(dir, test, out = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith('.') || entry.name === '_build' || entry.name === 'node_modules') continue;
+    const file = path.join(dir, entry.name);
+    if (entry.isDirectory()) filesUnder(file, test, out);
+    else if (test.test(entry.name)) out.push(file);
+  }
+  return out;
+}
+
 // A block both outputs skip (myst-to-tex and the theme drop `visibility: 'remove'`), which MyST
 // still resolves and harvests, marked so the repair that added it can find it again
 export const hiddenBlock = (marker, children) => ({ type: 'block', visibility: 'remove', data: { [marker]: true }, children });

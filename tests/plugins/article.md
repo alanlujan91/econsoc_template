@@ -264,6 +264,17 @@ CAPNOTE: a caption with a note.[^capnote]
 
 SMALLCAPS: the {sc}`Small Caps` role and the {kbd}`Ctrl` key.
 
+(sec-remarks)=
+# Remarks on $\beta$ {-}
+
+UNNUMHEAD: [](#sec-remarks), [the remarks](#sec-remarks), [Remarks %s](#sec-remarks), [](#plain-remarks), [Appendix](#app-single).
+
+PAGELINK: see the [supplement page](supplement.md) and [the *short* note](nonum.md).
+
+## Plain remarks {.unnumbered}
+
+UNNUMBERED-SUB: a subsection without a number.
+
 # Floats
 
 MACROS: a raw block uses macros only there.
@@ -286,6 +297,8 @@ alpha & 1.00 \\
 \bottomrule
 \end{tabular}
 ```
+
+RAWNOTE: a note under the raw table.
 :::
 
 PIPETABLE: see [](#tbl-pipe).
@@ -305,6 +318,92 @@ ALIGNTABLE: a bare pipe table with alignment.
 | :--- | ---: | :---: |
 | A | 1.25 | ok |
 | B | 10.5 | fine |
+
+TABNOTES: see [](#tbl-notes).
+
+:::{table} A noted caption.
+:label: tbl-notes
+
+| Name | Value |
+| --- | --- |
+| alpha | 1.25 |
+
+TABNOTE-ONE: the first note.
+
+TABNOTE-TWO: the second note.
+:::
+
+MINUSCELLS: signs in a table.
+
+| Coef | Est | Range |
+| --- | --- | --- |
+| beta0 | -0.30 | 1-2 |
+| beta1 | &#8722;12.29 | n-a |
+
+SPANS: see [](#tbl-spans).
+
+:::{table} A spanned caption.
+:label: tbl-spans
+
+<table>
+<tr><th rowspan="2">Model</th><th colspan="2">Quantile</th></tr>
+<tr><th>2.5%</th><th>97.5%</th></tr>
+<tr><td>SPANROW</td><td>-1.5</td><td>2.5</td></tr>
+<tr><td rowspan="2">Tall</td><td>0.1</td><td>0.9</td></tr>
+<tr><td>0.2</td><td>0.8</td></tr>
+</table>
+:::
+
+PANELS: see [](#fig-panels), [](#fig-panels-pair), [](#fig-panels-left) and [](#fig-panels-one).
+
+::::{figure}
+:label: fig-panels
+
+:::{figure}
+:label: fig-panels-pair
+
+```{image} ../../sample/figure_sample.pdf
+:label: fig-panels-left
+```
+
+```{image} ../../sample/figure_sample.pdf
+:label: fig-panels-right
+```
+
+A pair of images.
+:::
+
+:::{figure} ../../sample/figure_sample.pdf
+:label: fig-panels-one
+:width: 30%
+
+One image.
+
+PANELNOTE: a note under one panel.
+:::
+
+| Lag | Value |
+| --- | --- |
+| one | -0.25 |
+
+Panels of every kind.
+::::
+
+SUBTABLES: see [](#tbl-sub).
+
+:::{table} Two tables side by side.
+:label: tbl-sub
+
+| Left | Value |
+| --- | --- |
+| a | 1.0 |
+
+| Right | Value |
+| --- | --- |
+| b | 2.0 |
+
+SUBTABLENOTE: the note under both.
+:::
 
 MULTIFIG: see [](#fig-multi).
 
@@ -337,6 +436,78 @@ In a note.
 
 IGNOREDIMG: ![ignored](_build/img/ignored_figure.pdf)
 
+AUTHOREDBIB: {cite:t}`wittman1990` in its book.
+
+CITEROLES: {cite:ps}`aumannhartperry1997`, {cite:ts}`aumannhartperry1997`, {cite:ct}`vonneumann1944`, {cite:cts}`aumannhartperry1997`, {cite:authors}`aumannhartperry1997`, {cite:cauthor}`vonneumann1944`, {cite:authorpars}`aumannhartperry1997`, {cite:alps}`aumannhartperry1997,vonneumann1944`, {cite:alp}`nash1950,debreu1959`, {cite:label}`nash1950`.
+
+# Text
+
+MATHLABELS: [](#eq-align), [](#eq-row1), [](#eq-row2) and [](#eq-gather).
+
+```{math}
+:label: eq-align
+\begin{align}
+a &= b \\
+c &= d
+\end{align}
+```
+
+$$
+\begin{align}
+e &= f \label{eq-row1} \\
+g &= h \label{eq-row2}
+\end{align}
+$$
+
+```{math}
+:label: eq-gather
+\begin{gather}
+p = q
+\end{gather}
+```
+
+SYMBOLS: -0.30 and &minus;0.45, not 10-20 or COVID-19, x &minus; y; a &rarr; b &rArr; c &larr; d &harr; e &hArr; f &lArr; g; wait... then.
+
+ABBREVS: e.g. this, i.e. that, cf. Smith, vs. them, etc. and Smith et al. (2000), etc. The end.
+
+QUOTATION: a quotation of two paragraphs follows.
+
+> QUOTATION-ONE first paragraph.
+>
+> QUOTATION-TWO second paragraph.
+
+QUOTEATTR: an attributed one of two paragraphs.
+
+> QUOTEATTR-ONE first paragraph.
+>
+> QUOTEATTR-TWO second paragraph.
+>
+> -- An Author
+
+ROLES: the {sf}`Sans Serif` role and the {logo}`LaTeX`, {logo}`TeX` and {logo}`LaTeX2e` logos.
+
+:::{enumerate} (i)
+1. ENUM-FIRST condition.
+2. (enum-second)=
+   ENUM-SECOND condition.
+:::
+
+ENUMREF: [Condition %s](#enum-second).
+
+UNICODE: K&#337;szegi Stra&szlig;e &euro; &#7865; in the text.
+
+:::{prf:theorem} Emphasis
+:label: thm-emph
+
+THMEMPH: a theorem with *stressed* words.
+:::
+
+:::{prf:definition} Upright
+:label: def-upright
+
+DEFUPRIGHT: a definition.
+:::
+
 :::{raw:latex}
 \begin{appendix}
 :::
@@ -355,6 +526,19 @@ Text of the second appendix.
 ## A part of the second appendix
 
 Text of its part.
+
+:::{raw:latex}
+\end{appendix}
+:::
+
+:::{raw:latex}
+\begin{appendix}
+:::
+
+(app-single)=
+# Single appendix {-}
+
+SINGLEAPP: the one unnumbered appendix.
 
 :::{raw:latex}
 \end{appendix}
