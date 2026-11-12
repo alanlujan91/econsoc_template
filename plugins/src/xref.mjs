@@ -11,62 +11,23 @@
 //   3. In a single-article export a top-level heading has no number (jupyter-book/mystmd#3035): a
 //      bare link prints the heading's title and `[Sec %s](#x)` prints `Sec ??`.
 //   4. A section inside the appendix is labelled "Section"; MyST knows nothing of the
-//      `\begin{appendix}` raw block, so a sibling document also gets its number wrong.
-// Each fix replaces the crossReference with a raw node: myst-to-tex writes its `tex`, while the site
-// and Typst render its children, the original node, so only the LaTeX export changes.
+//      `\begin{appendix}` raw block or of the appendix part template.tex sets inside one, so
+//      a sibling document also gets its number wrong.
+// Each fix steers the crossReference or replaces it with a raw node (refs.refNode), so only the
+// LaTeX changes.
+
+import { labelOf, pageParts, plainText, texEscape, walk } from './util.mjs';
+import { fill, isProjectRef, refNode, splitAt } from './refs.mjs';
 
 const APPENDIX_OPEN = /\\begin\s*\{appendix\}|\\appendix(?![A-Za-z])/;
 const APPENDIX_CLOSE = /\\end\s*\{appendix\}/;
 
-// Appendix label -> the number LaTeX prints for it ("A", "B.1"), per file, filled at document stage
-// for every page of the project and read at project stage by the page being exported
+// Per file of the project, filled at document stage: appendix label -> the number LaTeX prints
+// for it ("A", "B.1"), counting the headings inside a raw `\begin{appendix}` block (`raw`) or,
+// for an appendix part, which template.tex sets inside one, all of them (`whole`)
 const appendixByFile = new Map();
-
-const TEX_SPECIALS = {
-  '\\': '\\textbackslash{}',
-  '{': '\\{',
-  '}': '\\}',
-  '#': '\\#',
-  $: '\\$',
-  '%': '\\%',
-  '&': '\\&',
-  _: '\\_',
-  '^': '\\^{}',
-  '~': '\\textasciitilde{}',
-};
-const texEscape = (s) => s.replace(/[\\{}#$%&_^~]/g, (c) => TEX_SPECIALS[c]);
-
-// The text of a node, or null when it holds anything but text (math, an image), which this cannot
-// write as LaTeX
-function plainText(node) {
-  if (node.type === 'text') return node.value ?? '';
-  if (!node.children) return null;
-  let out = '';
-  for (const child of node.children) {
-    const text = plainText(child);
-    if (text == null) return null;
-    out += text;
-  }
-  return out;
-}
-
-// Pre-order walk handing each node its parent and index, so a node can be replaced in place
-function walk(node, visit, parent, index) {
-  visit(node, parent, index);
-  node.children?.forEach((child, i) => walk(child, visit, node, i));
-}
-
-const labelOf = (node) => node.label ?? node.identifier;
-
-// Split `text` around the last occurrence of `slot`; null when it does not occur
-function splitAt(text, slot) {
-  const i = slot ? text.lastIndexOf(slot) : -1;
-  return i < 0 ? null : [text.slice(0, i), text.slice(i + slot.length)];
-}
-
-// LaTeX for text with `middle` in the slot, tying the preceding word to it as myst-to-tex does
-const fill = ([before, after], middle) =>
-  texEscape(before).replace(/\s+$/, '~') + middle + texEscape(after);
+// Appendix part (inline, `<page>#parts.appendix`, or a file) -> its page
+const appendixParts = new Map();
 
 const alph = (n) => String.fromCharCode(64 + n);
 
@@ -74,10 +35,28 @@ const alph = (n) => String.fromCharCode(64 + n);
 const isDefault = (node, text) =>
   node.enumerator != null && text === node.template?.replaceAll('%s', node.enumerator);
 
+const appendixOf = (file) => appendixByFile.get(file)?.[appendixParts.has(file) ? 'whole' : 'raw'] ?? new Map();
+
+// The appendix numbers an export of `page` prints: its own, and its appendix part's
+function pageAppendix(page) {
+  const parts = [...appendixParts].filter(([, owner]) => owner === page).map(([part]) => appendixOf(part));
+  return new Map([appendixOf(page), ...parts].flatMap((numbers) => [...numbers]));
+}
+
 // The number LaTeX prints for an appendix heading of any page, or undefined
 function appendixNumber(label) {
-  for (const numbers of appendixByFile.values()) if (numbers.has(label)) return numbers.get(label);
+  for (const file of appendixByFile.keys()) if (appendixOf(file).has(label)) return appendixOf(file).get(label);
   return undefined;
+}
+
+// Numbers `heading` as a heading of an appendix, with `counts` the count so far at each level
+function numberHeading(numbers, counts, heading, top) {
+  const level = heading.depth - top;
+  counts.length = level + 1;
+  counts[level] = (counts[level] ?? 0) + 1;
+  const parts = Array.from(counts, (c) => c ?? 1);
+  const label = labelOf(heading);
+  if (label) numbers.set(label, [alph(parts[0]), ...parts.slice(1)].join('.'));
 }
 
 const xrefSource = {
@@ -92,9 +71,9 @@ const xrefSource = {
       if (node.type === 'link' || node.type === 'crossReference') node.authoredText = plainText(node);
       if (node.type === 'heading') depths.push(node.depth);
     });
-    const numbers = new Map();
+    const numbers = { raw: new Map(), whole: new Map() };
+    const counts = { raw: [], whole: [] };
     const top = Math.min(...depths);
-    const counts = [];
     let inside = false;
     walk(tree, (node) => {
       if (node.type === 'raw') {
@@ -103,15 +82,15 @@ const xrefSource = {
         if (APPENDIX_CLOSE.test(source)) inside = false;
         return;
       }
-      if (!inside || node.type !== 'heading') return;
-      const level = node.depth - top;
-      counts.length = level + 1;
-      counts[level] = (counts[level] ?? 0) + 1;
-      const parts = Array.from(counts, (c) => c ?? 1);
-      const label = labelOf(node);
-      if (label) numbers.set(label, [alph(parts[0]), ...parts.slice(1)].join('.'));
+      if (node.type !== 'heading') return;
+      numberHeading(numbers.whole, counts.whole, node, top);
+      if (inside) numberHeading(numbers.raw, counts.raw, node, top);
     });
     appendixByFile.set(vfile.path, numbers);
+    if (vfile.path?.includes('#')) return;
+    for (const part of pageParts(vfile.path)) {
+      if (part.name === 'appendix') appendixParts.set(part.file ?? `${vfile.path}#parts.appendix`, vfile.path);
+    }
   },
 };
 
@@ -151,7 +130,7 @@ const crossReferences = {
   doc: 'Writes cross-references the way the PDF needs them; the site keeps the original node',
   stage: 'project',
   plugin: () => (tree, vfile) => {
-    const page = { appendix: appendixByFile.get(vfile.path) ?? new Map(), titles: new Map(), numbered: false };
+    const page = { appendix: pageAppendix(vfile.path), titles: new Map(), numbered: false };
     walk(tree, (node) => {
       if (node.type !== 'heading') return;
       if (node.enumerator != null) page.numbered = true;
@@ -160,8 +139,7 @@ const crossReferences = {
       if (label && title != null) page.titles.set(label, title);
     });
     walk(tree, (node, parent, index) => {
-      if (node.type !== 'crossReference' || !parent || node.kind === 'definitionTerm') return;
-      if (node.remoteBaseUrl || /^[a-z]+:/i.test(node.url ?? '')) return; // another project or site
+      if (!isProjectRef(node, parent)) return;
       const text = plainText(node);
       const remote = node.remote === true;
       if (text == null) {
@@ -170,12 +148,9 @@ const crossReferences = {
       }
       const tex = remote ? remoteTex(node, text) : localTex(node, text, page);
       if (tex === undefined) return;
-      parent.children[index] = { type: 'raw', lang: 'latex', tex, children: [node] };
+      parent.children[index] = refNode(node, tex);
     });
   },
 };
 
-export default {
-  name: 'Econsoc cross-references',
-  transforms: [xrefSource, crossReferences],
-};
+export default { repair: 'xref', transforms: [xrefSource, crossReferences] };

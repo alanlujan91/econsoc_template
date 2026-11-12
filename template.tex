@@ -20,8 +20,8 @@
 
 \startlocaldefs
 
-%% claim and fact are not MyST proof kinds; defined for raw-LaTeX blocks.
-%% MyST defines the kinds it renders. See README "Proof directives".
+%% claim and fact are not MyST proof kinds: plugins/econsoc.mjs adds prf:claim
+%% and prf:fact, and raw-LaTeX blocks use them. See README "Proof directives".
 \theoremstyle{plain}
 \newtheorem{claim}{Claim}
 \newtheorem*{fact}{Fact}
@@ -50,6 +50,11 @@
 \usepackage{cancel}
 \usepackage{supertabular}
 \usepackage{epigraph}
+%% LaTeX that plugins/econsoc.mjs writes whole requests no packages, so the boxes
+%% and strikeouts it may hold load here; ulem with normalem, since a bare ulem
+%% (what MyST injects for {del}) turns every \emph into an underline.
+\usepackage{framed}
+\usepackage[normalem]{ulem}
 
 %% Author-supplied packages via the `extra_packages` export option, e.g.
 %%   extra_packages: tikz,pgfplots
@@ -86,13 +91,33 @@
 \makeatother
 
 %% The four prf kinds released myst-to-tex drops (upstream issue 3030), which
-%% plugins/proof-kinds.mjs restores. algorithm is a theorem, not the float
+%% plugins/econsoc.mjs restores. algorithm is a theorem, not the float
 %% package. See README "Algorithms" and docs/template-internals.md.
 \theoremstyle{plain}
 \newtheorem{assumption}{Assumption}
 \newtheorem{algorithm}{Algorithm}
 \newtheorem{criterion}{Criterion}
 \newtheorem{property}{Property}
+%% {exercise} and {solution}, which released MyST drops and plugins/econsoc.mjs
+%% writes. A solution's heading is its argument: "Solution to Exercise 2".
+\newtheorem{exercise}{Exercise}
+\newtheorem*{exercise*}{Exercise}
+\makeatletter
+\newtheorem*{es@solution}{\es@solutionhead}
+\newenvironment{solution}[1]{\def\es@solutionhead{#1}\begin{es@solution}}{\end{es@solution}}
+%% MyST defines its kinds only when it writes a proof itself; plugins/econsoc.mjs
+%% may write them all. Numbering as after the detaching above.
+\@ifundefined{theorem}{\newtheorem{theorem}{Theorem}}{}
+\@ifundefined{lemma}{\newtheorem{lemma}[theorem]{Lemma}}{}
+\@ifundefined{corollary}{\newtheorem{corollary}{Corollary}}{}
+\@ifundefined{proposition}{\newtheorem{proposition}{Proposition}}{}
+\@ifundefined{definition}{\newtheorem{definition}{Definition}}{}
+\@ifundefined{example}{\newtheorem{example}{Example}}{}
+\@ifundefined{remark}{\newtheorem{remark}{Remark}}{}
+\@ifundefined{axiom}{\newtheorem{axiom}{Axiom}}{}
+\@ifundefined{conjecture}{\newtheorem{conjecture}{Conjecture}}{}
+\@ifundefined{observation}{\newtheorem{observation}{Observation}}{}
+\makeatother
 %% Opt-in aliases for the axiom/observation workaround: the block prints and
 %% numbers as Assumption/Algorithm. Off by default, so a genuine axiom keeps its name.
 [# if options.axiom_as_assumption #]
@@ -265,9 +290,14 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Appendix                                 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% No `parts.appendix` branch: a document declaring it loses its appendix
-%% silently, and references cited only there never reach the .bib. Open the
-%% appendix in the document body instead. See README "Appendices".
+%% A frontmatter `appendix` part needs plugins/econsoc.mjs: without it, references
+%% cited only there never reach the .bib and its headings drop a level, losing the
+%% appendix letters. See README "Appendices".
+[# if parts.appendix #]
+\begin{appendix}
+[-parts.appendix-]
+\end{appendix}
+[# endif #]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Bibliography:  BibTeX Version          %%

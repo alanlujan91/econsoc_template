@@ -1,0 +1,126 @@
+// The Econometric Society template's MyST plugin: every repair of a LaTeX export that released
+// mystmd gets wrong, one repair each (plugins/README.md lists them). ECONSOC_DISABLE=name,...
+// switches repairs off; scripts/check-plugins.sh uses it to require each repair's own assertions
+// to fail without it.
+//
+// Order is the order of the transforms within each stage. At project stage the inline repairs
+// come first and the block repairs, which render a subtree to LaTeX, after them, so a block
+// renders the inline repairs already made inside it.
+
+import fs from 'node:fs';
+import path from 'node:path';
+import pkg from '../package.json' with { type: 'json' };
+import algorithmLines from './algorithm-lines.mjs';
+import blockBreaks from './block-breaks.mjs';
+import citationForms from './citations.mjs';
+import claimFact from './claim-fact.mjs';
+import doiLinks from './doi-citations.mjs';
+import exercises from './exercises.mjs';
+import {
+  boxedFloatsRepair as boxedFloats,
+  ignoredImagesRepair as ignoredImages,
+  rawTablesRepair as rawTables,
+  subfiguresRepair as subfigures,
+  tableColumnsRepair as tableColumns,
+} from './floats.mjs';
+import footnotes from './footnotes.mjs';
+import inlineRaws from './inline-raws.mjs';
+import labelCase from './label-case.mjs';
+import linkedImages from './linked-images.mjs';
+import macros from './macros.mjs';
+import missingRefs from './missing-refs.mjs';
+import partCitations from './part-citations.mjs';
+import partHeadings from './parts.mjs';
+import proofKinds from './proof-kinds.mjs';
+import proofTitles from './proof-titles.mjs';
+import quotes from './quotes.mjs';
+import rawRefs from './raw-refs.mjs';
+import sectionNumbering from './section-numbering.mjs';
+import smallcaps from './smallcaps.mjs';
+import stackedLabels from './stacked-labels.mjs';
+import targetLabels from './target-labels.mjs';
+import unnumberedRefs from './unnumbered-refs.mjs';
+import xref from './xref.mjs';
+
+const REPAIRS = [
+  // Inline. doi-links restores its links before anything renders them, linked-images first;
+  // target-labels numbers items before unnumbered-refs reads them, which writes `??` before xref
+  // would write `\ref`; label-case follows every repair that writes `\ref`; raw-refs renders the
+  // links the others wrote.
+  doiLinks,
+  linkedImages,
+  stackedLabels,
+  sectionNumbering,
+  targetLabels,
+  unnumberedRefs,
+  xref,
+  labelCase,
+  missingRefs,
+  citationForms,
+  partCitations,
+  rawRefs,
+  // smallcaps before footnotes, which renders footnote bodies
+  smallcaps,
+  footnotes,
+  partHeadings,
+  // Block. The floats first, so a float inside a proof or a quote gets their LaTeX; boxed-floats
+  // after the others and quotes, since it lifts the floats they make; algorithm-lines and
+  // exercises before the proof repairs, which render what those hold.
+  rawTables,
+  tableColumns,
+  subfigures,
+  quotes,
+  boxedFloats,
+  ignoredImages,
+  algorithmLines,
+  exercises,
+  claimFact,
+  proofKinds,
+  proofTitles,
+  // block-breaks follows every block repair, so it sees the raw blocks they wrote; macros reads
+  // their raw LaTeX; inline-raws, last, reaches all of it (ignored-images, a document-stage
+  // check, could sit anywhere)
+  blockBreaks,
+  macros,
+  inlineRaws,
+];
+
+const disabled = new Set((process.env.ECONSOC_DISABLE ?? '').split(',').filter(Boolean));
+const unknown = [...disabled].filter((name) => !REPAIRS.some((r) => r.repair === name));
+if (unknown.length) throw new Error(`ECONSOC_DISABLE names no repair: ${unknown.join(', ')}`);
+const active = REPAIRS.filter((r) => !disabled.has(r.repair));
+
+// The repair names, which scripts/check-plugins.sh reads to run one rejection build per repair
+export const repairs = REPAIRS.map((r) => r.repair);
+
+// The bundle renders blocks with its own myst-to-tex, the one the mystmd release in package.json
+// ships. The running mystmd is read off its install: pip puts mystmd_py/myst.cjs next to a
+// mystmd-<version>.dist-info, npm puts dist/myst.cjs under mystmd's package.json.
+export function hostMystmd(cli = process.argv[1]) {
+  try {
+    const dir = path.dirname(fs.realpathSync(cli));
+    const site = path.dirname(dir);
+    const info = fs.readdirSync(site).map((name) => name.match(/^mystmd-([\w.]+)\.dist-info$/)?.[1]).find(Boolean);
+    if (info) return info;
+    const npm = JSON.parse(fs.readFileSync(path.join(site, 'package.json'), 'utf8'));
+    return npm.name === 'mystmd' ? npm.version : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const target = pkg.econsoc.mystmd;
+const running = hostMystmd();
+if (running && running !== target) {
+  console.warn(
+    `econsoc: plugins/econsoc.mjs was built for mystmd ${target} (myst-to-tex ${pkg.dependencies['myst-to-tex']}); ` +
+      `this build runs mystmd ${running}: rebuild it (plugins/README.md)`,
+  );
+}
+
+export default {
+  name: 'Econsoc',
+  directives: active.flatMap((r) => r.directives ?? []),
+  roles: active.flatMap((r) => r.roles ?? []),
+  transforms: active.flatMap((r) => r.transforms ?? []),
+};

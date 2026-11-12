@@ -32,9 +32,10 @@ template_files() {
 }
 
 # Keys cited in a .tex, sorted and unique: every \cite form, starred or with [pre][post]
-# arguments (`\citep[e.g.][p. 2]{a, b}`), split at commas. Tested by scripts/check-plugins.sh.
+# arguments (`\citep[e.g.][p. 2]{a, b}`, a braced one holding `]` too), split at commas.
+# Tested by scripts/check-plugins.sh.
 cited_keys() {
-    { grep -oE '\\cite[a-zA-Z]*\*?(\[[^]]*\])*\{[^}]*\}' "$1" || true; } |
+    { grep -oE '\\cite[a-zA-Z]*\*?(\[(\{[^{}]*\}|[^]{])*\])*\{[^}]*\}' "$1" || true; } |
         sed 's/.*{//; s/}//' | tr ',' '\n' | tr -d ' ' | { grep -v '^$' || true; } | sort -u
 }
 

@@ -15,16 +15,18 @@ project:
     title:
       enabled: false
     headings: true
+  # Macros the article uses only inside raw LaTeX (the macros repair)
+  math:
+    '\HRat': 'H'
+    '\Gfac': '\Gamma_{#1}'
   # ack.md is a frontmatter part, not a page
   toc:
     - file: article.md
     - file: supplement.md
-  # The documented order: xref first, so references inside a restored proof block are fixed
-  # before proof-kinds renders that block's body to LaTeX
+    - file: nonum.md
+    - file: algo.tex
   plugins:
-    - ../../plugins/xref.mjs
-    - ../../plugins/part-citations.mjs
-    - ../../plugins/proof-kinds.mjs
+    - ../../plugins/econsoc.mjs
   # `pdf`, not `tex+pdf`: `myst build --tex` also compiles every tex+pdf export
   exports:
     - id: article-tex
@@ -38,6 +40,16 @@ project:
       supplement: true
       output: _build/out/supplement.tex
       articles: [supplement.md]
+    - id: nonum-tex
+      format: tex
+      template: ../../
+      output: _build/out/nonum.tex
+      articles: [nonum.md]
+    - id: algo-tex
+      format: tex
+      template: ../../
+      output: _build/out/algo.tex
+      articles: [algo.tex]
     - id: article-pdf
       format: pdf
       template: ../../
@@ -49,6 +61,16 @@ project:
       supplement: true
       output: _build/out/supplement.pdf
       articles: [supplement.md]
+    - id: nonum-pdf
+      format: pdf
+      template: ../../
+      output: _build/out/nonum.pdf
+      articles: [nonum.md]
+    - id: algo-pdf
+      format: pdf
+      template: ../../
+      output: _build/out/algo.pdf
+      articles: [algo.tex]
 # A site of its own, or `myst build --site` here builds into the repository root's site
 site:
   template: article-theme

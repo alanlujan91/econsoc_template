@@ -56,8 +56,9 @@ parts:
   - id: acknowledgement
     required: false
     description: Acknowledgements and funding information
-# No `appendix` part: MyST leaves frontmatter parts out of the bibliography harvest. Open the
-# appendix in the document body with raw LaTeX and `include` it instead. README "Appendices".
+  - id: appendix
+    required: false
+    description: Appendix, set after the body under the class's appendix lettering (needs plugins/econsoc.mjs)
 options:
   - type: choice
     id: journal
@@ -149,6 +150,7 @@ packages:
   - epigraph
   - etoolbox
   - fontenc
+  - framed
   - hyperref
   - mhchem
   - multirow
@@ -158,5 +160,6 @@ packages:
   - textcomp
   - threeparttable
   - times
+  - ulem
   - url
   - wrapfig
