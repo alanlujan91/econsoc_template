@@ -198,6 +198,24 @@ jobs:
             || { echo "FAIL: raw table did not render"; exit 1; }
           echo "raw booktabs table compiles and renders"
 
+      # econsoc.bst's five-author label, which no sample exercises: it must print, and the
+      # qe run proves the assertion can fail.
+      - name: Assert Econometrica's five-author citation label
+        run: |
+          scripts/check-citation-labels.sh
+          if JOURNAL=qe scripts/check-citation-labels.sh; then
+            echo "FAIL: the label assertion passed for qe, so it cannot fail"; exit 1
+          fi
+
+      # The axiom/observation alias options, with the plugin's own definitions and without
+      - name: Assert the theorem alias options, with and without the plugin
+        run: (cd plugins && npm ci) && scripts/check-theorem-aliases.sh
+
+      # letter-maps reads the files myst.yml extends and the cited .bib entries, which the
+      # plugin fixture cannot hold; an all-ASCII paper is the control whose maps must go
+      - name: Assert when the plugin drops the xelatex letter maps
+        run: scripts/check-letter-maps.sh
+
       # scripts/build-samples.sh is the gate: it clears and counts the exports, greps each log, and
       # checks the emitted \bibliographystyle per journal. docs/template-internals.md says why.
       - name: Build and verify every sample export
@@ -247,11 +265,16 @@ jobs:
             echo
             echo "The committed PDFs no longer match what this source builds."
             echo "If the change is intended, rebuild and commit them:"
-            echo "  rm -rf _build sample/exports/*_pdf_tex sample/exports/*_pdf_logs"
-            echo "  myst build --pdf --force"
+            echo "  rm -rf sample/_build sample/exports/*_pdf_tex sample/exports/*_pdf_logs"
+            echo "  scripts/build-samples.sh"
             exit 1
           fi
           echo "all six PDFs match the committed text"
+
+      # The template's goal: the emitted .tex is nearly the upstream sample's own. Token
+      # similarity per export against original/, with floors that only ratchet up.
+      - name: Gate the emitted LaTeX's fidelity to the upstream samples
+        run: python3 scripts/check-fidelity.py --self-test && python3 scripts/check-fidelity.py
 
       # Every plugins/README.md case exits 0 without its repair, so this reads the emitted LaTeX,
       # the site and the compiled fixture, requires each repair's assertions to fail with it off,
