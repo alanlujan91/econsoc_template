@@ -65,23 +65,24 @@ numbering:
 (s1)=
 # Introduction
 
-This template helps you to create a properly formatted LaTeX2e manuscript.
+This template helps you to create a properly formatted {logo}`LaTeX2e` manuscript.
 Prepare your paper in the same style as used in this sample .pdf file.
-Try to avoid excessive use of italics and bold face; underlining is generally banned (except for exceptional cases). Please do not use any LaTeX2e or TeX commands that affect the layout or formatting of your document (i.e., commands like `\textheight`, `\textwidth`, etc.). Note that the Introduction should be @s1 it should not immediately follow the abstract without a heading.
+Try to avoid excessive use of italics and bold face; underlining is generally banned (except for exceptional cases). Please do not use any {logo}`LaTeX2e` or {logo}`TeX` commands that affect the layout or formatting of your document (i.e., commands like `\textheight`, `\textwidth`, etc.). Note that the Introduction should be @s1 it should not immediately follow the abstract without a heading.
 
-# Section headings
+# Section Headings
 
 Here are some subsections:
 
-## A subsection
+## A Subsection
 
 Regular text.
 
-### A subsubsection
+### A Subsubsection
 
 Regular text.
 
-**Paragraph heading**
+#### Paragraph heading {-}
+
 If you want to add mini-headings for paragraphs without numbers please use `\paragraph*{}`.
 
 # Text
@@ -94,20 +95,22 @@ two levels deep.
 - This is the first item of an itemized list. Each item in the list is marked with a "tick." The document style determines what kind of tick mark is used.
 - This is the second item of the list. It contains another list nested inside of it.
   - This is the first item of an itemized list that is nested within the itemized list.
-  - This is the second item of the inner list. LaTeX allows you to nest lists deeper than you really should.
+  - This is the second item of the inner list. {logo}`LaTeX` allows you to nest lists deeper than you really should.
 
   This is the rest of the second item of the outer list.
 - This is the third item of the list.
 
 The following is an example of an *enumerated* list, two levels deep.
 
+:::{enumerate} (i)
 1. This is the first item of an enumerated list. Each item in the list is marked with a "tick." The document style determines what kind of tick mark is used.
 2. This is the second item of the list. It contains another list nested inside of it.
    1. This is the first item of an enumerated list that is nested within.
-   2. This is the second item of the inner list. LaTeX allows you to nest lists deeper than you really should.
+   2. This is the second item of the inner list. {logo}`LaTeX` allows you to nest lists deeper than you really should.
 
    This is the rest of the second item of the outer list.
 3. This is the third item of the list.
+:::
 
 Do not use (1), (2), etc.  for items in order to avoid confusion with numbered equations.
 
@@ -128,18 +131,18 @@ Only include in the reference list entries for which there are text citations,
 and make sure all citations are included in the reference list.
 Simple author and year cite: {cite:t}`b1`.
 Multiple bibliography items cite: {cite:t}`b2,b3,b4,b5`.
-Parenthetical cite: {cite:p}`b1`.
-Multiple narrative cites: {cite:t}`b2,b3,b4`.
+Author only cite: {cite:author}`b4`.
+Year only cite: {cite:year}`b4`. Citing bibliography with object @b1 [Theorem 1]. Citing within brackets is done with the same commands (e.g., {cite:t}`b2,b3,b4`).
 
 # Fonts
 
 Please use text fonts in text mode, e.g.:
 
-- Regular text `\textrm{}`
+- Roman `\textrm{}`
 - *Italic* `\textit{}`
 - **Bold** `\textbf{}`
-- Small Caps `\textsc{}`
-- Sans serif `\textsf{}`
+- {sc}`Small Caps` `\textsc{}`
+- {sf}`Sans serif` `\textsf{}`
 - `Typewriter` `\texttt{}`
 
 Please use mathematical fonts in mathematical mode, e.g.:
@@ -189,7 +192,7 @@ and longer ones.
 
 Please use regular counters (Theorem 1) as opposed to counters belonging on sections (Theorem 3.1). Results (Lemmas, Propositions, Theorems, Claims) can be on the same or different counters.
 
-## Examples for *`plain`*-style environments
+## Examples for *`plain`*-Style Environments
 
 :::{prf:theorem}
 :label: th1
@@ -200,7 +203,7 @@ This is the body of @th1.
 This is the body of the proof of the theorem above.
 :::
 
-:::{prf:proposition}
+:::{prf:claim}
 :label: cl1
 This is the body of @cl1.
 :::
@@ -221,17 +224,17 @@ This is the body of @le1. @le1 is numbered after
 @th2 because we used `[theorem]` in `\newtheorem`.
 :::
 
-:::{prf:observation}
+:::{prf:fact}
 This is the body of the fact. Fact is unnumbered because we used the command `\newtheorem*`
 instead of `\newtheorem`.
 :::
 
-:::{prf:proof} Proof of Theorem 2
+:::{prf:proof} Proof of @th2
 This is the body of the proof of @th2.
 :::
 
 
-## Examples for *`definition`*-style environments
+## Examples for *`definition`*-Style Environments
 
 The following environments can be numbered or not; if numbered, they should be on different counters from results.
 
@@ -241,6 +244,7 @@ This is the body of @de1. Definitions should be on a different counter from resu
 :::
 
 :::{prf:example}
+:nonumber:
 This is the body of the example. Example is unnumbered because we used `\newtheorem*`
 instead of `\newtheorem`.
 :::
@@ -250,7 +254,7 @@ This is the body of the remark.
 :::
 
 
-# Equations and the like
+# Equations and the Like
 
 Only number equations to which there is a subsequent reference.
 See equations below {eq}`ccs`--{eq}`e7`. Please punctuate equations as you would punctuate a sentence, that is add a comma between two equations and add a period if it ends a sentence.
@@ -294,7 +298,7 @@ Note that variables made of more than one letter should use command `\mathit`,
 e.g., $\mathit{sov}=550$, where $\mathit{sov}$ is sum of votes. Abbreviations used in subscripts or superscripts should use `\mathrm`,
 e.g., $t_{\mathrm{max}}-t_{\mathrm{min}} =10$. Operator names should use `\operatorname`, e.g. $\operatorname{AR}(1)$. Also, note that $\emptyset$ symbol is preferred to $\varnothing$.
 
-# Tables and figures
+# Tables and Figures
 
 Cross-references to labeled tables: As you can see in {numref}`sphericcase`
 and also in {numref}`parset`.
@@ -316,16 +320,25 @@ Equil. Points
 & S \\
 \hline
 $L_1$    & $-$2.485252241 & 0.000000000    & 0.017100631    & 8.230711648    & U \\
-$L_2$    & 0.000000000    & 0.000000000    & 3.068883732    & 0.000000000    & S \\
-$L_3$    & 0.009869059    & 0.000000000    & 4.756386544    & $-$0.000057922 & U \\
-$L_4$    & 0.210589855    & 0.000000000    & $-$0.007021459 & 9.440510897    & U \\
-$L_5$    & 0.455926604    & 0.000000000    & $-$0.212446624 & 7.586126667    & U \\
-$L_6$    & 0.667031314    & 0.000000000    & 0.529879957    & 3.497660052    & U \\
-$L_7$    & 2.164386674    & 0.000000000    & $-$0.169308438 & 6.866562449    & U \\
-$L_8$    & 0.560414471    & 0.421735658    & $-$0.093667445 & 9.241525367    & U \\
-$L_9$    & 0.560414471    & $-$0.421735658 & $-$0.093667445 & 9.241525367    & U \\
-$L_{10}$ & 1.472523232    & 1.393484549    & $-$0.083801333 & 6.733436505    & U \\
-$L_{11}$ & 1.472523232    & $-$1.393484549 & $-$0.083801333 & 6.733436505    & U \\
+$L_2$    & $-$2.485252241 & 0.000000000    & 0.017100631    & 8.230711648    & U \\
+$L_3$    & 0.000000000    & 0.000000000    & 3.068883732    & 0.000000000    & S \\
+$L_4$    & 0.000000000    & 0.000000000    & 3.068883732    & 0.000000000    & S \\
+$L_5$    & 0.009869059    & 0.000000000    & 4.756386544    & $-$0.000057922 & U \\
+$L_6$    & 0.009869059    & 0.000000000    & 4.756386544    & $-$0.000057922 & U \\
+$L_7$    & 0.210589855    & 0.000000000    & $-$0.007021459 & 9.440510897    & U \\
+$L_8$    & 0.210589855    & 0.000000000    & $-$0.007021459 & 9.440510897    & U \\
+$L_9$    & 0.455926604    & 0.000000000    & $-$0.212446624 & 7.586126667    & U \\
+$L_{10}$    & 0.455926604    & 0.000000000    & $-$0.212446624 & 7.586126667    & U \\
+$L_{11}$    & 0.667031314    & 0.000000000    & 0.529879957    & 3.497660052    & U \\
+$L_{12}$    & 0.667031314    & 0.000000000    & 0.529879957    & 3.497660052    & U \\
+$L_{13}$    & 2.164386674    & 0.000000000    & $-$0.169308438 & 6.866562449    & U \\
+$L_{14}$    & 2.164386674    & 0.000000000    & $-$0.169308438 & 6.866562449    & U \\
+$L_{15}$    & 0.560414471    & 0.421735658    & $-$0.093667445 & 9.241525367    & U \\
+$L_{16}$    & 0.560414471    & $-$0.421735658 & $-$0.093667445 & 9.241525367    & U \\
+$L_{17}$ & 1.472523232    & 1.393484549    & $-$0.083801333 & 6.733436505    & U \\
+$L_{18}$ & 1.472523232    & $-$1.393484549 & $-$0.083801333 & 6.733436505    & U \\
+$L_{19}$ & 1.472523232    & 1.393484549    & $-$0.083801333 & 6.733436505    & U \\
+$L_{20}$ & 1.472523232    & $-$1.393484549 & $-$0.083801333 & 6.733436505    & U \\
 \hline
 \end{tabular}
 \legend{This is how table note should be presented.
@@ -355,11 +368,17 @@ Model
 \hline
 {Model 0} & $\beta_0$ & $-$12.29 & 2.29 & $-$18.04 & $-$11.99 & $-$8.56 \\
           & $\beta_1$ & 0.10     & 0.07 & $-$0.05  & 0.10     & 0.26    \\
-          & $\beta_2$ & 0.01     & 0.09 & $-$0.22  & 0.02     & 0.16    \\[6pt]
+          & $\beta_2$ & 0.01     & 0.09 & $-$0.22  & 0.02     & 0.16    \\
+          & $\beta_3$ & 0.22     & 0.17 & $-$0.10  & 0.22     & 0.55    \\[6pt]
 {Model 1} & $\beta_0$ & $-$4.58  & 3.04 & $-$11.00 & $-$4.44  & 1.06    \\
           & $\beta_1$ & 0.79     & 0.21 & 0.38     & 0.78     & 1.20    \\
-          & $\beta_2$ & $-$0.28  & 0.10 & $-$0.48  & $-$0.28  & $-$0.07 \\[6pt]
+          & $\beta_2$ & $-$0.28  & 0.10 & $-$0.48  & $-$0.28  & $-$0.07 \\
+          & $\beta_3$ & 0.22     & 0.17 & $-$0.10  & 0.22     & 0.55    \\[6pt]
 {Model 2} & $\beta_0$ & $-$11.85 & 2.24 & $-$17.34 & $-$11.60 & $-$7.85 \\
+          & $\beta_1$ & 0.73     & 0.21 & 0.32     & 0.73     & 1.16    \\
+          & $\beta_2$ & $-$0.60  & 0.14 & $-$0.88  & $-$0.60  & $-$0.34 \\
+          & $\beta_3$ & 0.22     & 0.17 & $-$0.10  & 0.22     & 0.55    \\[6pt]
+{Model 3} & $\beta_0$ & $-$11.85 & 2.24 & $-$17.34 & $-$11.60 & $-$7.85 \\
           & $\beta_1$ & 0.73     & 0.21 & 0.32     & 0.73     & 1.16    \\
           & $\beta_2$ & $-$0.60  & 0.14 & $-$0.88  & $-$0.60  & $-$0.34 \\
           & $\beta_3$ & 0.22     & 0.17 & $-$0.10  & 0.22     & 0.55    \\

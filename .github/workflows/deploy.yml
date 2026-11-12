@@ -39,8 +39,14 @@ jobs:
           sudo apt-get install -y imagemagick ghostscript poppler-utils
       - name: Install MyST Markdown
         run: npm install -g mystmd
+      # Two projects: the documentation (repository root, book theme) at the site root,
+      # and the sample (sample/myst.yml, article theme) under sample/.
       - name: Build HTML Assets
-        run: myst build --html
+        run: |
+          myst build --html
+          (cd sample && BASE_URL="$BASE_URL/sample" myst build --html)
+          test -f _build/html/index.html && test -f sample/_build/html/index.html
+          cp -r sample/_build/html _build/html/sample
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

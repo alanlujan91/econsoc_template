@@ -1,0 +1,17 @@
+version: 1
+project:
+  title: Econometric Society Journals MyST Template, Sample
+  github: https://github.com/alanlujan91/econsoc_template
+  license: CC-BY-4.0
+  open_access: true
+  # The sample shows what a paper that adopts the plugin gets (docs/plugin-repairs.md).
+  plugins:
+    - ../plugins/econsoc.mjs
+  toc:
+    - file: article.md
+    - file: supplement.md
+
+site:
+  # Its own site key keeps the build in sample/_build/; without one, MyST writes the site
+  # into the parent project's. Pinned to article-theme v1.4.1, as myst.yml pins book-theme.
+  template: https://github.com/myst-templates/article-theme/archive/4acce1eba558b301c2aadca99a7804aa6e294e1e.zip

@@ -77,9 +77,9 @@ numbering:
 (s1)=
 # Introduction
 
-This template helps you to create a properly formatted LaTeX2e manuscript.
+This template helps you to create a properly formatted {logo}`LaTeX2e` manuscript.
 Prepare your paper in the same style as used in this sample .pdf file.
-Try to avoid excessive use of italics and bold face; underlining is generally banned (except for exceptional cases). Please do not use any LaTeX2e or TeX commands that affect the layout or formatting of your document (i.e., commands like `\textheight`, `\textwidth`, etc.). Note that the Introduction should be @s1 it should not immediately follow the abstract without a heading.
+Try to avoid excessive use of italics and bold face; underlining is generally banned (except for exceptional cases). Please do not use any {logo}`LaTeX2e` or {logo}`TeX` commands that affect the layout or formatting of your document (i.e., commands like `\textheight`, `\textwidth`, etc.). Note that the Introduction should be @s1 it should not immediately follow the abstract without a heading.
 
 # Section headings
 
@@ -93,7 +93,8 @@ Regular text.
 
 Regular text.
 
-**Paragraph heading**
+#### Paragraph heading {-}
+
 If you want to add mini-headings for paragraphs without numbers please use `\paragraph*{}`.
 
 # Text
@@ -106,20 +107,22 @@ two levels deep.
 - This is the first item of an itemized list. Each item in the list is marked with a "tick." The document style determines what kind of tick mark is used.
 - This is the second item of the list. It contains another list nested inside of it.
   - This is the first item of an itemized list that is nested within the itemized list.
-  - This is the second item of the inner list. LaTeX allows you to nest lists deeper than you really should.
+  - This is the second item of the inner list. {logo}`LaTeX` allows you to nest lists deeper than you really should.
 
   This is the rest of the second item of the outer list.
 - This is the third item of the list.
 
 The following is an example of an *enumerated* list, two levels deep.
 
+:::{enumerate} (i)
 1. This is the first item of an enumerated list. Each item in the list is marked with a "tick." The document style determines what kind of tick mark is used.
 2. This is the second item of the list. It contains another list nested inside of it.
    1. This is the first item of an enumerated list that is nested within.
-   2. This is the second item of the inner list. LaTeX allows you to nest lists deeper than you really should.
+   2. This is the second item of the inner list. {logo}`LaTeX` allows you to nest lists deeper than you really should.
 
    This is the rest of the second item of the outer list.
 3. This is the third item of the list.
+:::
 
 Do not use (1), (2), etc.  for items in order to avoid confusion with numbered equations.
 
@@ -142,28 +145,18 @@ Only include in the reference list entries for which there are text citations,
 and make sure all citations are included in the reference list.
 Simple author and year cite: {cite:t}`b1`.
 Multiple bibliography items cite: {cite:t}`b2,b3,b4,b5`.
-Parenthetical cite: {cite:p}`b1`.
-Multiple narrative cites: {cite:t}`b2,b3,b4`.
-
-Econometrica asks that papers with five or more authors be cited using the
-initials of the first four authors followed by a plus sign, which the class
-renders from the bibliography entry rather than from the citation: {cite:t}`b6`.
-
-If your paper has an approved supplement, reference it at the end of the
-introduction and cite it, for example "the Supplemental Appendix
-({cite:t}`b5`) contains results for empirical tests". When referring to
-material inside the supplement, use plain text rather than a cross-reference,
-since the supplement is a separate document.
+Author only cite: {cite:author}`b4`.
+Year only cite: {cite:year}`b4`. Citing bibliography with object @b1 [Theorem 1]. Citing within brackets is done with the same commands (e.g., {cite:t}`b2,b3,b4`).
 
 # Fonts
 
 Please use text fonts in text mode, e.g.:
 
-- Regular text `\textrm{}`
+- Roman `\textrm{}`
 - *Italic* `\textit{}`
 - **Bold** `\textbf{}`
-- Small Caps `\textsc{}`
-- Sans serif `\textsf{}`
+- {sc}`Small Caps` `\textsc{}`
+- {sf}`Sans serif` `\textsf{}`
 - `Typewriter` `\texttt{}`
 
 Please use mathematical fonts in mathematical mode, e.g.:
@@ -224,7 +217,7 @@ This is the body of @th1.
 This is the body of the proof of the theorem above.
 :::
 
-:::{prf:proposition}
+:::{prf:claim}
 :label: cl1
 This is the body of @cl1.
 :::
@@ -245,61 +238,13 @@ This is the body of @le1. @le1 is numbered after
 @th2 because we used `[theorem]` in `\newtheorem`.
 :::
 
-:::{prf:observation}
+:::{prf:fact}
 This is the body of the fact. Fact is unnumbered because we used the command `\newtheorem*`
 instead of `\newtheorem`.
 :::
 
-:::{prf:proof} Proof of Theorem 2
+:::{prf:proof} Proof of @th2
 This is the body of the proof of @th2.
-:::
-
-
-## Assumptions and algorithms
-
-Released `myst-to-tex` omits `prf:assumption` and `prf:algorithm` from the LaTeX
-export, so the three blocks in this section render on the website but are absent
-from this PDF. See jupyter-book/mystmd#3030; the fix is open as #3031.
-
-:::{prf:assumption}
-:label: as1
-Assumptions use `{prf:assumption}` and carry their own counter.
-:::
-
-Write the steps of an algorithm as an ordinary Markdown list when the paper is
-also published as a website. It numbers correctly in both outputs and loses
-nothing on either side.
-
-:::{prf:algorithm}
-:label: alg1
-Endogenous grid method.
-
-1. Initialize the exogenous grid.
-2. For $t = T-1$ down to $0$:
-   1. Invert the Euler equation.
-   2. Recover the endogenous grid.
-3. Return the policy function.
-:::
-
-For pseudocode typography (line numbers in a gutter, `for ... do` keywords), nest
-an `algorithmic` block instead. It renders in both outputs, keeping the loop
-structure on the website as well; only the `\Return` keyword is dropped there,
-and its argument text survives:
-
-:::{prf:algorithm}
-:label: alg2
-The same method as @alg1, typeset as pseudocode.
-
-```{raw} latex
-\begin{algorithmic}[1]
-\State initialize the exogenous grid
-\For{$t = T-1$ down to $0$}
-  \State invert the Euler equation
-  \State recover the endogenous grid
-\EndFor
-\State \Return the policy function
-\end{algorithmic}
-```
 :::
 
 ## Examples for *`definition`*-style environments
@@ -312,6 +257,7 @@ This is the body of @de1. Definitions should be on a different counter from resu
 :::
 
 :::{prf:example}
+:nonumber:
 This is the body of the example. Example is unnumbered because we used `\newtheorem*`
 instead of `\newtheorem`.
 :::
@@ -446,9 +392,19 @@ Model
 The dotted lines show the values of $u(x)$ for $x$ in the discrete support of $F$. The solid lines show $u_\textrm{conv}(x)$.
 ```
 
-% The supported appendix form: raw LaTeX opens and closes it and `include` splices
-% the content into the body. Why, and why its headings are `#` level: README,
-% "Appendices".
+:::{raw:latex}
+\begin{appendix}
+:::
+
+(appn)=
+# Title {-}
+
+Appendices should be provided in `{appendix}` environment. If there is only one appendix,
+then please refer to it in text as $\ldots$ in the [Appendix](#appn).
+
+:::{raw:latex}
+\end{appendix}
+:::
 
 :::{raw:latex}
 \begin{appendix}
