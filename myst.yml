@@ -23,4 +23,6 @@ project:
     - file: README.md
 
 site:
-  template: article-theme
+  # Pinned to article-theme v1.4.1: v2.0.0 (2026-11-10) fails `myst build --html`, every
+  # `_public/` download link "No route matches URL", with mystmd 1.12.0 and 1.13.0 alike.
+  template: https://github.com/myst-templates/article-theme/archive/4acce1eba558b301c2aadca99a7804aa6e294e1e.zip

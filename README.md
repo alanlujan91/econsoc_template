@@ -360,7 +360,7 @@ This template uses MyST native features wherever possible and falls back to raw 
 
 - `` {cite:t}`ref` `` for textual citations (e.g., "Smith (2020)") renders as `\citet{}`
 - `` {cite:p}`ref` `` for parenthetical citations (e.g., "(Smith 2020)") renders as `\citep{}`
-- MyST recognizes other roles too (`{cite:author}`, `{cite:year}`, ...), and citation prefixes and suffixes. With the plugin, its `citation-forms` repair writes each as the site prints it, adds natbib's starred and capital forms as roles (`{cite:ps}` for `\citep*`, `{cite:ct}` for `\Citet`), and its `authored-bib` repair resolves a key cited only in raw LaTeX ([plugins/README.md](plugins/README.md#citations)). Without the plugin, MyST's LaTeX renderer collapses them all to `\citet`/`\citep` and drops the notes, so the QE sample's author-only (`\citeauthor`) and year-only (`\citeyear`) cites need raw LaTeX; see [Limitations and Fidelity](#myst-limitations-and-fidelity-to-the-qeecma-template). See also the [MyST Citations Guide](https://mystmd.org/guide/citations).
+- MyST recognizes other roles too (`{cite:author}`, `{cite:year}`, ...), and citation prefixes and suffixes. With the plugin, its `citation-forms` repair writes each as the site prints it, adds natbib's starred and capital forms as roles (`{cite:ps}` for `\citep*`, `{cite:ct}` for `\Citet`), and its `authored-bib` repair resolves a key cited only in raw LaTeX ([plugins/README.md](plugins/README.md#citations)). Without the plugin, MyST's LaTeX renderer collapses them all to `\citet`/`\citep` and drops the notes, so the QE sample's author-only (`\citeauthor`) and year-only (`\citeyear`) cites need raw LaTeX; see [Limitations and Fidelity](#myst-limitations-and-fidelity-to-the-qe-and-ecma-template). See also the [MyST Citations Guide](https://mystmd.org/guide/citations).
 - `` {cite}`a,b` `` is narrative, "Aumann (1987), Nash (1950)," on the site and in the PDF alike, by MyST's design. Write `{cite:p}` for a parenthetical citation.
 
 #### Lists
@@ -554,7 +554,7 @@ The template bundles `algpseudocode` but deliberately **does not** load the `alg
 
 Do **not** write a raw `\begin{algorithm}...\caption{}` float. Without the float package that fails with `Package caption Error: \caption outside float`, the caption is silently dropped, and `myst build` still exits 0 with a PDF.
 
-### MyST Limitations and Fidelity to the QE/ECMA Template
+### MyST Limitations and Fidelity to the QE and ECMA Template
 
 Authoring in Markdown means the generated LaTeX is not byte-identical to a hand-written QE `.tex`. The first table below lists differences where the rendered **PDF is still equivalent** to the original; the second lists **real limitations** where it is not. Each records the workaround where one exists.
 
@@ -716,7 +716,7 @@ In supplement mode, the template skips funding, coeditor, keywords, and JEL code
 myst start
 ```
 
-Build the PDF as in [Quick Start](#3-build-pdf).
+Build the PDF as in [Quick Start](#quick-start).
 
 ### Troubleshooting
 

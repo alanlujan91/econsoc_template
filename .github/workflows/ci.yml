@@ -105,15 +105,16 @@ jobs:
         with:
           node-version: 22
 
-      # texlive-xetex is required (myst drives xelatex and xdvipdfmx). The rest follow the .sty
-      # files a compile loads: latex-extra for adjustbox/cleveref/epigraph/supertabular/
-      # threeparttable/wrapfig, science for algorithmicx/mhchem, fonts-* for times/helvet.
+      # myst drives xelatex and xdvipdfmx (texlive-xetex). The rest follow the .sty files a compile
+      # loads: latex-extra (adjustbox, cleveref, epigraph, supertabular, threeparttable, wrapfig),
+      # science (algorithmicx, mhchem), fonts-* (times, helvet), plain-generic (ulem).
       - name: Install MyST and a TeX toolchain
         run: |
           npm install -g mystmd
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             latexmk texlive-xetex texlive-latex-extra texlive-latex-recommended \
+            texlive-plain-generic \
             texlive-science texlive-fonts-recommended texlive-fonts-extra \
             poppler-utils
 
