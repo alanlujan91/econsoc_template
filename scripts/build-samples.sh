@@ -83,10 +83,11 @@ for tex in "${texs[@]}"; do
         fi
     fi
 
-    if ! grep -q 'Section~\\ref{s1}' "$tex"; then
-        fail "$tex has no numbered reference to s1."
+    # The supplement's labels start with supp-, since labels are project-wide
+    if ! grep -q 'Introduction should be Section~\\ref{\(supp-\)\?s1}' "$tex"; then
+        fail "$tex has no numbered reference to the Introduction (s1 or supp-s1)."
         echo "       Section refs have degraded to heading titles. Check the numbering" >&2
-        echo "       keys: frontmatter needs title: true AND headings: true." >&2
+        echo "       keys: frontmatter needs headings: true, and title: true without the plugin." >&2
         grep -o 'Introduction should be [A-Za-z~\\{}]*' "$tex" | head -1 >&2 || true
     fi
 

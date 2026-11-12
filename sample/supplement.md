@@ -38,12 +38,12 @@ numbering:
   headings: true
 ---
 
-(s1)=
+(supp-s1)=
 # Introduction
 
 This template helps you to create a properly formatted {logo}`LaTeX2e` manuscript.
 Prepare your paper in the same style as used in this sample .pdf file.
-Try to avoid excessive use of italics and bold face; underlining is generally banned (except for exceptional cases). Please do not use any {logo}`LaTeX2e` or {logo}`TeX` commands that affect the layout or formatting of your document (i.e., commands like `\textheight`, `\textwidth`, etc.). Note that the Introduction should be @s1 it should not immediately follow the abstract without a heading.
+Try to avoid excessive use of italics and bold face; underlining is generally banned (except for exceptional cases). Please do not use any {logo}`LaTeX2e` or {logo}`TeX` commands that affect the layout or formatting of your document (i.e., commands like `\textheight`, `\textwidth`, etc.). Note that the Introduction should be @supp-s1 it should not immediately follow the abstract without a heading.
 
 # Section Headings
 
@@ -171,8 +171,8 @@ Please use regular counters (Theorem 1) as opposed to counters belonging on sect
 ## Examples for *`plain`*-Style Environments
 
 :::{prf:theorem}
-:label: th1
-This is the body of @th1.
+:label: supp-th1
+This is the body of @supp-th1.
 :::
 
 :::{prf:proof}
@@ -180,24 +180,24 @@ This is the body of the proof of the theorem above.
 :::
 
 :::{prf:claim}
-:label: cl1
-This is the body of @cl1.
+:label: supp-cl1
+This is the body of @supp-cl1.
 :::
 
 :::{prf:axiom}
-:label: ax1
-This is the body of @ax1. Axioms should be on a different counter from results (e.g. Theorems, Propositions, Lemmas).
+:label: supp-ax1
+This is the body of @supp-ax1. Axioms should be on a different counter from results (e.g. Theorems, Propositions, Lemmas).
 :::
 
 :::{prf:theorem} Title of the Theorem
-:label: th2
-This is the body of @th2. @th2 has additional title.
+:label: supp-th2
+This is the body of @supp-th2. @supp-th2 has additional title.
 :::
 
 :::{prf:lemma}
-:label: le1
-This is the body of @le1. @le1 is numbered after
-@th2 because we used `[theorem]` in `\newtheorem`.
+:label: supp-le1
+This is the body of @supp-le1. @supp-le1 is numbered after
+@supp-th2 because we used `[theorem]` in `\newtheorem`.
 :::
 
 :::{prf:fact}
@@ -205,8 +205,8 @@ This is the body of the fact. Fact is unnumbered because we used the command `\n
 instead of `\newtheorem`.
 :::
 
-:::{prf:proof} Proof of @th2
-This is the body of the proof of @th2.
+:::{prf:proof} Proof of @supp-th2
+This is the body of the proof of @supp-th2.
 :::
 
 
@@ -215,8 +215,8 @@ This is the body of the proof of @th2.
 The following environments can be numbered or not; if numbered, they should be on different counters from results.
 
 :::{prf:definition}
-:label: de1
-This is the body of @de1. Definitions should be on a different counter from results (e.g. Theorems, Propositions, Lemmas).
+:label: supp-de1
+This is the body of @supp-de1. Definitions should be on a different counter from results (e.g. Theorems, Propositions, Lemmas).
 :::
 
 :::{prf:example}
@@ -233,13 +233,13 @@ This is the body of the remark.
 # Equations and the Like
 
 Only number equations to which there is a subsequent reference.
-See equations below {eq}`ccs`--{eq}`e7`. Please punctuate equations as you would punctuate a sentence, that is add a comma between two equations and add a period if it ends a sentence.
+See equations below {eq}`supp-ccs`--{eq}`supp-e7`. Please punctuate equations as you would punctuate a sentence, that is add a comma between two equations and add a period if it ends a sentence.
 
 Two equations:
 
 ```math
 C_{s}  =  K_{M} \frac{\mu/\mu_{x}}{1-\mu/\mu_{x}}
-\label{ccs}
+\label{supp-ccs}
 ```
 
 and
@@ -262,7 +262,7 @@ Equation arrays:
 One long equation, note that the equation number is on the last line:
 
 ```{math}
-:label: e7
+:label: supp-e7
 \begin{aligned}
  \mu_{\text{normal}} & = \mu_{x} \frac{C_{s}}{K_{x}C_{x}+C_{s}} \\
                      & = \mu_{\text{normal}} - Y_{x/s}\bigl(1-H(C_{s})\bigr)(m_{s}+\pi /Y_{p/s})\\
@@ -276,16 +276,16 @@ e.g., $t_{\mathrm{max}}-t_{\mathrm{min}} =10$. Operator names should use `\opera
 
 # Tables and Figures
 
-Cross-references to labeled tables: As you can see in {numref}`sphericcase`
-and also in {numref}`parset`.
+Cross-references to labeled tables: As you can see in {numref}`supp-sphericcase`
+and also in {numref}`supp-parset`.
 
-Sample of cross-reference to figure: {numref}`penG` shows that it is not easy to get something on paper. Note that figures will be in grayscale in the printed version.
+Sample of cross-reference to figure: {numref}`supp-penG` shows that it is not easy to get something on paper. Note that figures will be in grayscale in the printed version.
 
 ```{raw} latex
 
 \begin{table*}
 \caption{The spherical case ($I_1=0$, $I_2=0$).}
-\label{sphericcase}
+\label{supp-sphericcase}
 \begin{tabular}{@{}lrrrrc@{}@{}}
 \hline
 Equil. Points
@@ -329,7 +329,7 @@ We encourage authors to report standard errors and coverage sets or confidence i
 
 \begin{table}
 \caption{Sample posterior estimates for each model.}
-\label{parset}
+\label{supp-parset}
 \begin{tabular}{@{}lcrcrrr@{}@{}}
 \hline
 & & & &\multicolumn{3}{c}{Quantile} \\
@@ -366,6 +366,6 @@ Model
 
 
 ```{figure} figure_sample
-:name: penG
+:name: supp-penG
 The dotted lines show the values of $u(x)$ for $x$ in the discrete support of $F$. The solid lines show $u_\textrm{conv}(x)$.
 ```
