@@ -299,7 +299,7 @@ jobs:
       - name: Check scripts with a shebang are executable in git
         run: pipx run pre-commit run check-shebang-scripts-are-executable --all-files
 
-      # `cmd | grep -q` under pipefail fails whenever grep exits before cmd finishes writing
+      # Under pipefail, a pipe into a quiet grep fails whenever grep exits before the writer ends
       - name: Forbid piping into grep -q in scripts and workflows
         run: pipx run pre-commit run no-pipe-into-grep-q --all-files
 
