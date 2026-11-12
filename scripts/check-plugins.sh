@@ -40,9 +40,9 @@ read -ra REPAIRS < <(cd plugins && node --input-type=module -e \
     "import { repairs } from './econsoc.mjs'; console.log(repairs.join(' '))")
 [ "${#REPAIRS[@]}" -gt 0 ] || die "plugins/econsoc.mjs names no repairs"
 # Repairs asserted only by code in failures(), not by a TEX_EXPECT or TEX_FORBID line
-CODED_ONLY=(part-citations boxed-floats ignored-images inline-raws block-breaks quotations)
+CODED_ONLY=(part-citations boxed-floats ignored-images inline-raws block-breaks quotations raw-legends)
 # Repairs whose assertions read the site; their rejection runs build it too
-SITE_REPAIRS=(inline-raws)
+SITE_REPAIRS=(inline-raws raw-legends)
 
 # repair|file|text a .tex must contain, outside `%` comments and the `\iffalse` copies the site
 # needs (inline-raws); a text opening with `~` is an extended regular expression
@@ -426,6 +426,14 @@ failures() {
     if mine quotes; then
         grep -Pzq '\\begin\{quotation\}\nQUOTEATTR-ONE first paragraph\.\n\nQUOTEATTR-TWO' <<<"${body[article.tex]}" ||
             echo "article.tex sets the attributed two-paragraph quote QUOTEATTR-ONE outside a quotation"
+    fi
+    if mine raw-legends; then
+        # The site keeps the raw table's note as its legend; the log drops the false error for it
+        grep -qF 'node of "macro_legend"' "$dir/_build/check.log" && echo "the log still reports \\legend as unhandled"
+        if [ -d "$dir/_build/site/content" ]; then
+            jq -e '[.mdast | .. | objects | select(.type == "legend") | .. | strings | select(contains("RAWLEGEND"))] | length > 0' \
+                "$dir/_build/site/content/index.json" >/dev/null || echo "the site lost the raw table's legend RAWLEGEND"
+        fi
     fi
     if mine ignored-images; then
         grep -qF 'Image _build/img/ignored_figure.pdf is gitignored' "$dir/_build/check.log" ||

@@ -448,6 +448,16 @@ BIBCAPS: {cite:t}`hardnet2024` leaves two acronyms unbraced.
 
 CITEROLES: {cite:ps}`aumannhartperry1997`, {cite:ts}`aumannhartperry1997`, {cite:ct}`vonneumann1944`, {cite:cts}`aumannhartperry1997`, {cite:authors}`aumannhartperry1997`, {cite:cauthor}`vonneumann1944`, {cite:authorpars}`aumannhartperry1997`, {cite:alps}`aumannhartperry1997,vonneumann1944`, {cite:alp}`nash1950,debreu1959`, {cite:label}`nash1950`.
 
+```{raw} latex
+\begin{table}
+\caption{Raw legend probe}\label{tab-rawlegend}
+\begin{tabular}{ll}
+a & b \\
+\end{tabular}
+\legend{RAWLEGEND: the note of a raw table, with $x^2$.}
+\end{table}
+```
+
 # Text
 
 MATHLABELS: [](#eq-align), [](#eq-row1), [](#eq-row2) and [](#eq-gather).

@@ -459,10 +459,38 @@ const ignoredImagesTransform = {
   },
 };
 
+// raw-legends: MyST parses each `{raw} latex` block for the site with tex-to-myst, which does not
+// know econsocart's `\legend` and logs an "Unhandled TEX conversion" error for it. It keeps the
+// macro's text all the same, and MyST files that paragraph as the table's legend, so the site
+// shows the note and the LaTeX keeps the macro: the error is false, and `--strict` fails on it.
+// Document-stage plugins run after that parse and before MyST prints the file's messages, so this
+// drops one such error per `\legend` whose table holds a legend on the site; any other stays.
+const LEGEND_UNHANDLED = 'Unhandled TEX conversion for node of "macro_legend"';
+const legendMacros = (tex) => (tex.replace(/(^|[^\\])%.*$/gm, '$1').match(/\\legend\s*\{/g) ?? []).length;
+const legendTables = (node) =>
+  (node.type === 'container' && node.children?.some((child) => child.type === 'legend' && child.children?.length) ? 1 : 0) +
+  (node.children ?? []).reduce((n, child) => n + legendTables(child), 0);
+
+const rawLegendsTransform = {
+  name: 'floats-raw-legends',
+  doc: "Drops tex-to-myst's false error for a \\legend in raw LaTeX whose table shows the note on the site",
+  stage: 'document',
+  plugin: () => (tree, file) => {
+    let recovered = 0;
+    walk(tree, (node) => {
+      if (node.type !== 'raw' || !/^(la)?tex$/.test(node.lang ?? '') || typeof node.value !== 'string') return;
+      recovered += Math.min(legendMacros(node.value), legendTables(node));
+    });
+    if (!recovered) return;
+    file.messages = file.messages.filter((m) => !(String(m.message).includes(LEGEND_UNHANDLED) && recovered-- > 0));
+  },
+};
+
 // index.mjs runs boxed-floats after the other three, since it lifts the floats they make
 export const rawTables = { repair: 'raw-tables', transforms: [rawTablesTransform] };
 export const tableColumns = { repair: 'table-columns', transforms: [tableColumnsTransform] };
 export const tableNotes = { repair: 'table-notes', transforms: [tableNotesTransform] };
+export const rawLegends = { repair: 'raw-legends', transforms: [rawLegendsTransform] };
 export const subfigures = { repair: 'subfigures', transforms: [subfiguresTransform] };
 export const boxedFloats = { repair: 'boxed-floats', transforms: [boxedFloatsTransform] };
 export const ignoredImages = { repair: 'ignored-images', transforms: [ignoredImagesTransform] };

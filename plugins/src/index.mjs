@@ -18,6 +18,7 @@ import {
   letterMaps,
   macros,
   partHeadings,
+  rawLegends,
   rawTables,
   subfigures,
   tableColumns,
@@ -95,6 +96,8 @@ const REPAIRS = [
   tableColumns,
   // table-notes after table-columns, whose tabular it follows, and before boxed-floats
   tableNotes,
+  // raw-legends, a document-stage message filter, could sit anywhere
+  rawLegends,
   subfigures,
   quotes,
   quotations,
