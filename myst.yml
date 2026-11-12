@@ -5,6 +5,28 @@ project:
   github: https://github.com/alanlujan91/econsoc_template
   license: CC-BY-4.0
   open_access: true
+  # The docs also render on GitHub, whose heading anchors are the implicit slugs these links
+  # use; an explicit `(label)=` would print there as text. All such links resolve.
+  error_rules:
+    - rule: reference-target-explicit
+      severity: ignore
+  # The sample is its own project; its PDF builds leave main.bib copies MyST would read here
+  exclude:
+    - sample/**
+  # Every docs page offers the sample's committed PDFs, copied into the site at build time
+  downloads:
+    - file: sample/exports/article_ecta.pdf
+      title: Sample article, Econometrica PDF
+    - file: sample/exports/article_qe.pdf
+      title: Sample article, Quantitative Economics PDF
+    - file: sample/exports/article_te.pdf
+      title: Sample article, Theoretical Economics PDF
+    - file: sample/exports/supplement_ecta.pdf
+      title: Sample supplement, Econometrica PDF
+    - file: sample/exports/supplement_qe.pdf
+      title: Sample supplement, Quantitative Economics PDF
+    - file: sample/exports/supplement_te.pdf
+      title: Sample supplement, Theoretical Economics PDF
   authors:
     - name: Alan Lujan
       website: https://github.com/alanlujan91
@@ -35,3 +57,12 @@ site:
   # Pinned to book-theme v1.4.1: v2.0.0 (2026-11-10) fails `myst build --html`, every
   # `_public/` download link "No route matches URL", with mystmd 1.12.0 and 1.13.0 alike.
   template: https://github.com/myst-templates/book-theme/archive/23f2df5493e23dfb1d9433c8aa64c87beb4232a3.zip
+  # The sample is a second site (sample/myst.yml), deployed under /sample/
+  nav:
+    - title: Sample article
+      url: https://alujan.dev/econsoc_template/sample/
+    - title: Sample supplement
+      url: https://alujan.dev/econsoc_template/sample/supplement
+  actions:
+    - title: View the sample article
+      url: https://alujan.dev/econsoc_template/sample/

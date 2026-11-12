@@ -1,12 +1,56 @@
 version: 1
 project:
-  title: Econometric Society Journals MyST Template, Sample
   github: https://github.com/alanlujan91/econsoc_template
   license: CC-BY-4.0
   open_access: true
+  # Both pages' authors, here so the article theme also shows them on the site (it draws
+  # the project's authors and downloads, never a page's); each page's exports inherit them.
+  authors:
+    - name:
+        given: First
+        surname: Author
+      email: first@somewhere.com
+      affiliations: ["add1", "add11"]
+    - name:
+        given: Second
+        surname: Author
+      email: second@somewhere.com
+      affiliations: ["add2"]
+    - name:
+        given: Third
+        surname: Author
+      email: third@somewhere.com
+      affiliations: ["add2"]
+  affiliations:
+    - id: "add1"
+      department: First Department of the First Author
+      institution: University
+    - id: "add11"
+      department: Second Department of the First Author
+      institution: University
+    - id: "add2"
+      department: Department of the Second and Third Authors
+      institution: University
+  downloads:
+    - id: article-ecta
+      title: Article, Econometrica PDF
+    - id: article-qe
+      title: Article, Quantitative Economics PDF
+    - id: article-te
+      title: Article, Theoretical Economics PDF
+    - id: supplement-ecta
+      title: Supplement, Econometrica PDF
+    - id: supplement-qe
+      title: Supplement, Quantitative Economics PDF
+    - id: supplement-te
+      title: Supplement, Theoretical Economics PDF
   # The sample shows what a paper that adopts the plugin gets (docs/plugin-repairs.md).
   plugins:
     - ../plugins/econsoc.mjs
+  # The PDF builds leave a main.bib per export there, which MyST would read as a second
+  # copy of references.bib
+  exclude:
+    - exports/**
   toc:
     - file: article.md
     - file: supplement.md

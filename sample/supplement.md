@@ -10,55 +10,31 @@ exports:
   # metadata differs from Quantitative Economics'.
   - format: tex+pdf
     template: ../
+    id: supplement-ecta
     output: exports/supplement_ecta.pdf
     supplement: true
     journal: ecta
     preprint: false
   - format: tex+pdf
     template: ../
+    id: supplement-qe
     output: exports/supplement_qe.pdf
     supplement: true
     journal: qe
     preprint: false
   - format: tex+pdf
     template: ../
+    id: supplement-te
     output: exports/supplement_te.pdf
     supplement: true
     journal: te
     preprint: false
-authors:
-  - name:
-      given: First
-      surname: Author
-    email: first@somewhere.com
-    affiliations: ["add1", "add11"]
-  - name:
-      given: Second
-      surname: Author
-    email: second@somewhere.com
-    affiliations: ["add2"]
-  - name:
-      given: Third
-      surname: Author
-    email: third@somewhere.com
-    affiliations: ["add2"]
-affiliations:
-  - id: "add1"
-    department: First Department of the First Author
-    institution: University
-  - id: "add11"
-    department: Second Department of the First Author
-    institution: University
-  - id: "add2"
-    department: Department of the Second and Third Authors
-    institution: University
 bibliography: references.bib
 venue:
   title: Quantitative Economics
   short_title: Quant Econ
   url: https://qeconomics.org/
 numbering:
-  title: true
   headings: true
 ---
 

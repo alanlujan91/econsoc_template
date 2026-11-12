@@ -117,7 +117,7 @@ scripts/sync-vendored.sh --check   # verify them (what CI runs)
 
 The upstream repositories belong to `vtex-soft` and send this repository no
 events, so GitHub cannot fire a workflow here when they are pushed to; the
-schedule is the only way to notice upstream movement. `check-upstream-drift`
+schedule is the only automatic way to notice upstream movement. `check-upstream-drift`
 complements it on every push and pull request, failing if a submodule pointer
 moved without the vendored files being re-synced.
 
@@ -189,6 +189,9 @@ The sample document demonstrates all template features:
 - **`sample/supplement.md`**: Supplementary-material example (`supplement: true`)
 - **`sample/appendix.md`**: Appendix example, spliced into the article body as described in [MyST authoring, Appendices](myst-authoring.md#appendices)
 - **`sample/references.bib`**: Bibliography example
+- **`sample/myst.yml`**: The sample site, with the authors and affiliations both pages
+  inherit and the six PDFs it offers for download; the article theme shows only these
+  project-level fields
 
 The sample's text is the upstream samples' own, written in MyST:
 `original/qe/qe_sample.tex`, with `original/ecta/ecta_sample.tex` and

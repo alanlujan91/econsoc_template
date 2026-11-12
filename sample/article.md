@@ -9,45 +9,22 @@ exports:
   # retargets by changing one line, and the build exercises all three journals.
   - format: tex+pdf
     template: ../
+    id: article-ecta
     output: exports/article_ecta.pdf
     journal: ecta
     preprint: false
   - format: tex+pdf
     template: ../
+    id: article-qe
     output: exports/article_qe.pdf
     journal: qe
     preprint: false
   - format: tex+pdf
     template: ../
+    id: article-te
     output: exports/article_te.pdf
     journal: te
     preprint: false
-authors:
-  - name:
-      given: First
-      surname: Author
-    email: first@somewhere.com
-    affiliations: ["add1", "add11"]
-  - name:
-      given: Second
-      surname: Author
-    email: second@somewhere.com
-    affiliations: ["add2"]
-  - name:
-      given: Third
-      surname: Author
-    email: third@somewhere.com
-    affiliations: ["add2"]
-affiliations:
-  - id: "add1"
-    department: First Department of the First Author
-    institution: University
-  - id: "add11"
-    department: Second Department of the First Author
-    institution: University
-  - id: "add2"
-    department: Department of the Second and Third Authors
-    institution: University
 keywords:
   - First keyword
   - second keyword
@@ -70,7 +47,6 @@ parts:
     We thank four anonymous referees. The Editor should not be thanked anonymously or by name in this footnote, or elsewhere in the paper. The first author gratefully acknowledges
     financial support from the National Science Foundation through Grant XXX-0000000.
 numbering:
-  title: true
   headings: true
 ---
 

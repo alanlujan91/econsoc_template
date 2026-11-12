@@ -119,6 +119,8 @@ myst build paper.md --pdf
 
 - Main article: [`sample/article.md`](sample/article.md)
 - Supplementary material: [`sample/supplement.md`](sample/supplement.md)
+- Their shared authors and affiliations, which both pages inherit:
+  [`sample/myst.yml`](sample/myst.yml)
 
 The sample is also published as a website, at
 <https://alujan.dev/econsoc_template/sample/>, and this documentation at
