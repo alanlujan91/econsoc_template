@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build every sample export and verify the emitted .tex, logs and PDFs: myst exits 0 on a broken
 # build, so only the artifacts show it. Rationale per check: docs/template-internals.md,
-# "What build-samples.sh guards, and why each check exists".
+# "What build-samples.sh guards".
 
 set -euo pipefail
 
@@ -24,6 +24,11 @@ expected=$(cat "${SOURCES[@]/#/sample/}" | grep -cE '^ *output: exports/.*\.pdf$
 [ "$expected" -gt 0 ] || die "no 'output: exports/*.pdf' line in ${SOURCES[*]}, so nothing would be checked"
 
 rm -rf sample/exports
+
+# xdvipdfmx stamps the build time and a trailer ID into each PDF, so every rebuild of unchanged
+# sources rewrote all six committed files; pinned to the samples' own `date:`, a rebuild is stable
+SOURCE_DATE_EPOCH=$(date -ud "$(sed -n 's/^date: //p' sample/article.md)" +%s) || die "sample/article.md has no date:"
+export SOURCE_DATE_EPOCH FORCE_SOURCE_DATE=1
 
 echo "Building ${SOURCES[*]} ($expected exports expected)"
 ( cd sample && myst build "${SOURCES[@]}" --pdf )
@@ -95,7 +100,7 @@ for tex in "${texs[@]}"; do
     done
 
     if grep -n '\\caption\*' "$tex" >&2; then
-        fail "\\caption* in $tex typesets as \"FIGURE 0\": a blockquote attribution written '--- Name' causes it; use '-- Name'"
+        fail "\\caption* in $tex typesets as \"FIGURE 0\": a blank '>' line before a blockquote's dash attribution causes it; delete that line"
     fi
 done
 
@@ -116,7 +121,7 @@ for pdf in "${pdfs[@]}"; do
     if [ "$unresolved" -ne 0 ]; then
         fail "$pdf contains $unresolved unresolved cross-reference(s) printed as ??."
         echo "       A numbered [Text %s](#label) link renders ?? in exports (mystmd#3035);" >&2
-        echo "       list plugins/xref.mjs in the project's myst.yml (see plugins/README.md)." >&2
+        echo "       list plugins/econsoc.mjs in the project's myst.yml (see plugins/README.md)." >&2
     fi
 done
 

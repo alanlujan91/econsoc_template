@@ -5,10 +5,8 @@ date: 2025-01-15
 license: CC-BY-4.0
 open_access: true
 exports:
-  # One source, one export per journal. The prose is identical; only the
-  # `journal` option differs, which is the whole point: the same manuscript
-  # retargets by changing one line, and building all three keeps every journal
-  # exercised rather than only Quantitative Economics.
+  # One export per journal. Only the `journal` option differs, so the manuscript
+  # retargets by changing one line, and the build exercises all three journals.
   - format: tex+pdf
     template: ../
     output: exports/article_ecta.pdf
@@ -269,8 +267,8 @@ Assumptions use `{prf:assumption}` and carry their own counter.
 :::
 
 Write the steps of an algorithm as an ordinary Markdown list when the paper is
-also published as a website. It numbers correctly in both outputs, and nothing
-is lost on either side.
+also published as a website. It numbers correctly in both outputs and loses
+nothing on either side.
 
 :::{prf:algorithm}
 :label: alg1
@@ -448,20 +446,9 @@ Model
 The dotted lines show the values of $u(x)$ for $x$ in the discrete support of $F$. The solid lines show $u_\textrm{conv}(x)$.
 ```
 
-% The appendix is opened and closed with raw LaTeX and its content is spliced in
-% with `include`, rather than declared as a `parts.appendix` frontmatter entry.
-% This is deliberate and is the supported form. Against this template a
-% `parts: appendix:` entry loses the appendix ENTIRELY and silently, because the
-% template has no branch for it; the underlying MyST behavior is that harvesting
-% walks the rendered document and frontmatter parts are excluded from it, so such
-% an appendix would also lose any reference it alone cites. Content spliced
-% into the body is in the main AST and its citations survive. The raw blocks are
-% NOT invisible in HTML: MyST parses each one and renders the environment name as
-% a paragraph, so the website shows a stray paragraph reading "appendix" at each
-% end of the appendix. The PDF is correct; that is the cost on the web side.
-% Headings in `appendix.md` must be `#` level: included content sits one level
-% below the surrounding sections, and a demoted heading does not pick up the
-% class's appendix prefix, printing ".1" instead of "APPENDIX A:".
+% The supported appendix form: raw LaTeX opens and closes it and `include` splices
+% the content into the body. Why, and why its headings are `#` level: README,
+% "Appendices".
 
 :::{raw:latex}
 \begin{appendix}
