@@ -23,6 +23,8 @@ CITES: the body cites @enelow1984 and [@nash1950; see @debreu1959, p. 3].
 
 CITEFORMS: {cite:t}`{see}nash1950{p. 3}`, [e.g. @nash1950, pg. 22], @debreu1959 [ch. 2], {cite:year}`nash1950`, [-@debreu1959], {cite:author}`nash1950`, {cite:alp}`debreu1959`, [see @nash1950, p. 3; also @debreu1959, ch. 2], {cite:p}`{cf.}nash1950,debreu1959{p. 5}`.
 
+CITENOTE: a comma where `;` belongs, [@nash1950, extended by @debreu1959].
+
 DOILINKS: the [replication files](https://doi.org/10.5281/zenodo.1234567) and the badge [![DOI](../../sample/figure_sample.pdf)](https://doi.org/10.5281/zenodo.1234567).
 
 MISSING: the class member [](#no-such-label) describes, and [see %s](#no-such-other) too.

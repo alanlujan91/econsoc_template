@@ -75,13 +75,19 @@ function texOf(node, parent) {
   return [`\\cite{${node.label}}`, itemTex(node, node.kind)];
 }
 
+// `[@a, prose @b]` (a comma where `;` belongs) parses as ONE cite of b whose prefix holds "@a":
+// stock LaTeX dropped the note and with it the citation of a; the note now prints the raw key
+const KEY_IN_NOTE = /(?:^|[^\w@])@([A-Za-z][\w:.-]*)/;
+
 const formsTransform = {
   name: 'citation-forms',
   doc: 'Writes citation notes, year-only and author-only forms, and lone parenthetical cites as natbib commands',
   stage: 'project',
-  plugin: () => (tree) => {
+  plugin: () => (tree, file) => {
     walk(tree, (node, parent, index) => {
       if (!parent || parent.type === 'raw') return;
+      const key = node.type === 'cite' && `${node.prefix ?? ''} ${node.suffix ?? ''}`.match(KEY_IN_NOTE)?.[1];
+      if (key) file.message(`econsoc: the note of citation ${node.label} holds "@${key}", printed as a raw key: separate citations with ";" ([@${key}; ... @${node.label}])`);
       const tex = texOf(node, parent);
       if (tex && tex[0] !== tex[1]) parent.children[index] = rawLatex(node, tex[1]);
     });

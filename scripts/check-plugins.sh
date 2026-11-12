@@ -277,6 +277,10 @@ failures() {
                 /\\end\{((?:$ENV{ENVS})\*?)\}\n?(?=[A-Za-z(])/g' <<<"${body[$file]}"
         done
     fi
+    if mine citation-forms; then
+        grep -qF 'the note of citation debreu1959 holds "@nash1950"' "$dir/_build/check.log" ||
+            echo "the build did not warn of the citation key inside a citation note"
+    fi
     if mine ignored-images; then
         grep -qF 'Image _build/img/ignored_figure.pdf is gitignored' "$dir/_build/check.log" ||
             echo "the build did not warn of the gitignored image"
