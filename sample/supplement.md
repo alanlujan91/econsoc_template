@@ -114,15 +114,18 @@ Year only cite: {cite:year}`b4`. Citing bibliography with object @b1 [Theorem 1]
 
 Please use text fonts in text mode, e.g.:
 
-- Roman `\textrm{}`
+:::{enumerate} none
+- {rm}`Roman` `\textrm{}`
 - *Italic* `\textit{}`
 - **Bold** `\textbf{}`
 - {sc}`Small Caps` `\textsc{}`
 - {sf}`Sans serif` `\textsf{}`
 - `Typewriter` `\texttt{}`
+:::
 
 Please use mathematical fonts in mathematical mode, e.g.:
 
+:::{enumerate} none
 - $\mathrm{ABCabc123}$ `\mathrm{}`
 - $\mathit{ABCabc123}$ `\mathit{}`
 - $\mathbf{ABCabc123}$ `\mathbf{}`
@@ -132,6 +135,7 @@ Please use mathematical fonts in mathematical mode, e.g.:
 - $\mathsf{ABCabc123}$ `\mathsf{}`
 - $\mathtt{ABCabc123}$ `\mathtt{}`
 - $\mathfrak{ABCabc123}$ `\mathfrak{}`
+:::
 
 Note that `\mathcal, \mathbb` belongs to capital letters-only font typefaces.
 
