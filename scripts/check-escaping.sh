@@ -110,12 +110,12 @@ run_checks() {
     [ -s "$tex" ] || { no_tex specials "$tex"; return 1; }
 
     for pat in "${PRESENCE[@]}"; do
-        body "$tex" | grep -q "$pat" || { say "unescaped: $pat"; rc=1; }
+        body "$tex" | grep "$pat" >/dev/null || { say "unescaped: $pat"; rc=1; }
     done
     # Math must survive: escaping `_` here would turn $x_1$ into $x\_1$.
-    body "$tex" | grep -qF "\$x_1\$" || { say "math over-escaped"; rc=1; }
+    body "$tex" | grep -F "\$x_1\$" >/dev/null || { say "math over-escaped"; rc=1; }
     # Content myst renders itself arrives escaped; escaping again emits 50\\%.
-    if body "$tex" | grep -q '50\\\\%'; then say "double-escaped"; rc=1; fi
+    if body "$tex" | grep '50\\\\%' >/dev/null; then say "double-escaped"; rc=1; fi
 
     minimal=$(build_minimal "$tpl" "$work/minimal.$RANDOM")
     if render_aborted "$(dirname "$(dirname "$minimal")")/render.log"; then
@@ -123,10 +123,10 @@ run_checks() {
     fi
     [ -s "$minimal" ] || { no_tex minimal "$minimal"; return 1; }
     for pat in "${EMPTY[@]}"; do
-        if body "$minimal" | grep -q "$pat"; then say "empty macro emitted: $pat"; rc=1; fi
+        if body "$minimal" | grep "$pat" >/dev/null; then say "empty macro emitted: $pat"; rc=1; fi
     done
     # An empty running head is a blank head on every odd page, at exit 0.
-    body "$minimal" | grep -q '^\\runtitle{Page Heading}' \
+    body "$minimal" | grep '^\\runtitle{Page Heading}' >/dev/null \
         || { say "running head did not fall back to the title"; rc=1; }
     return $rc
 }

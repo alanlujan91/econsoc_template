@@ -473,7 +473,7 @@ echo "OK: the site keeps every block, shows claim and fact, and holds nothing th
 # The builds run side by side, JOBS at a time; their checks run after, in order.
 rm -rf "$BLIND"/without-*
 for repair in "${REPAIRS[@]}"; do
-    printf '%s\n' "${TEX_EXPECT[@]}" "${TEX_FORBID[@]}" | grep -q "^$repair|" ||
+    printf '%s\n' "${TEX_EXPECT[@]}" "${TEX_FORBID[@]}" | grep "^$repair|" >/dev/null ||
         [[ " ${CODED_ONLY[*]} " == *" $repair "* ]] || die "repair $repair has no assertions in this script"
     blind=$BLIND/without-$repair
     mkdir -p "$blind"
@@ -515,7 +515,7 @@ if $PDF; then
     done
     for file in "${!pdf_text[@]}"; do
         # The repairs print `??label`; a bare `?` is an undefined reference or citation
-        if sed -E 's/\?\?[A-Za-z0-9]//g' <<<"${pdf_text[$file]}" | grep -qF '?'; then echo "$file prints ?"; n=$((n + 1)); fi
+        if sed -E 's/\?\?[A-Za-z0-9]//g' <<<"${pdf_text[$file]}" | grep -F '?' >/dev/null; then echo "$file prints ?"; n=$((n + 1)); fi
     done
     twice=$(grep -oF 'DISTINCTTWICE' <<<"${pdf_text[article.pdf]}" | wc -l)
     [ "$twice" -eq 1 ] || { echo "article.pdf prints the twice-cited footnote $twice times"; n=$((n + 1)); }

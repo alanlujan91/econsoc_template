@@ -47,6 +47,15 @@ repos:
         language: pygrep
         files: '^(README\.md|sample/(article|appendix|supplement)\.md|template\.(tex|yml)|myst\.yml)$'
 
+      # Under pipefail, `cmd | grep -q` fails at random: grep exits on its first match, cmd
+      # dies of SIGPIPE writing the rest, and the pipeline reports cmd's 141 for a match.
+      # `cmd | grep pattern >/dev/null` reads all of the input and has the same exit status.
+      - id: no-pipe-into-grep-q
+        name: Forbid piping into grep -q (SIGPIPE under pipefail)
+        entry: '\|\s*(command\s+)?grep\s+-[A-Za-z]*q'
+        language: pygrep
+        files: '^(scripts/.*\.sh|\.github/workflows/.*\.ya?ml)$'
+
       - id: build-sample-pdf
         name: Build sample PDFs
         entry: bash -c 'npm list -g mystmd &> /dev/null || npm install -g mystmd; scripts/build-samples.sh'

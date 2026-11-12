@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Self-test for scripts/sync-vendored.sh: each mutation of a scratch copy must make `--check`
-# FAIL with the diagnostic naming its reason, since a script that always exits 1 would pass an
+# FAIL with the diagnostic that states its reason, since a script that always exits 1 would pass an
 # exit-code test. The unmutated copy must pass.
 #
 #   scripts/selftest-sync-vendored.sh
@@ -66,7 +66,7 @@ check() {
         return
     fi
 
-    if ! printf '%s' "$out" | grep -qF "$expect"; then
+    if ! printf '%s' "$out" | grep -F "$expect" >/dev/null; then
         printf 'FAIL  %-34s exited %d but never said "%s"\n' "$name" "$rc" "$expect"
         printf '%s\n' "$out" | sed 's/^/        /' | head -4
         fail=$((fail + 1))

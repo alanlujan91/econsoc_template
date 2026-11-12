@@ -194,7 +194,7 @@ jobs:
               echo "FAIL: the template does not load booktabs for raw tables"; exit 1
             fi
           done
-          pdftotext out/t.pdf - | grep -q 'Mean' \
+          pdftotext out/t.pdf - | grep 'Mean' >/dev/null \
             || { echo "FAIL: raw table did not render"; exit 1; }
           echo "raw booktabs table compiles and renders"
 
@@ -299,6 +299,10 @@ jobs:
       - name: Check scripts with a shebang are executable in git
         run: pipx run pre-commit run check-shebang-scripts-are-executable --all-files
 
+      # `cmd | grep -q` under pipefail fails whenever grep exits before cmd finishes writing
+      - name: Forbid piping into grep -q in scripts and workflows
+        run: pipx run pre-commit run no-pipe-into-grep-q --all-files
+
   test-options:
     # Renders one document per case to LaTeX (no TeX toolchain) and asserts each option's own
     # token in the output: a render that merely succeeds passes with the option's conditional
@@ -320,7 +324,7 @@ jobs:
         run: |
           set -euo pipefail
           fail() { echo "FAIL ($label): $*" >&2; exit 1; }
-          has_opt() { printf '%s' "$class" | grep -q "[,[]$1[],]"; }
+          has_opt() { printf '%s' "$class" | grep "[,[]$1[],]" >/dev/null; }
           # render LABEL KEY:VALUE...: one export option per pair; $fm replaces open_access: false,
           # which myst.yml would otherwise make true everywhere. The citation is REQUIRED: without
           # one doc.bibliography stays empty and template.tex sets no bibliography.
