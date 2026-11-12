@@ -40,7 +40,10 @@ changes, apart from the site fixes the tables mark.
   each such node in running text into a span of a LaTeX-only `<tex>\iffalse `, the
   original node, and a LaTeX-only `\fi{}`. The site shows the original inline; LaTeX
   prints the repair and discards the original's rendering. myst-to-tex still writes
-  that rendering, so the packages and macros it needs reach the preamble.
+  that rendering, so the packages and macros it needs reach the preamble. A reference
+  that is one `\ref` skips the copy by steering myst-to-tex's own handler; a replaced
+  run of text (a minus sign, an abbreviation's space, a role) skips it as a childless
+  `raw` node, whose `value` the site shows as plain text.
 - Repairs that write a whole block (proofs, quotes, floats, footnote bodies) render it
   with the bundle's own myst-to-tex, the 1.0.48 that mystmd 1.12.0 runs, and the plugin
   warns at load when the running mystmd differs from the release the bundle was built
@@ -68,6 +71,8 @@ website too.
 | `stacked-labels` | of stacked `(a)=` and `(b)=` lines, or a `(a)=` line above a directive's `:label: b`, one label survives; links to the other print nothing and fail on the site | links to the lost label point at the survivor, in every page. Site |
 | `raw-refs` | a MyST link inside a `{raw} latex` block reaches the PDF verbatim | the link is resolved, across documents too, and written as any other link |
 | `section-numbering` | a numbering key set false (`headings`, `heading_N`, `equation`, `all`, in the page or `myst.yml`) unnumbers the site's headings or equations and never reaches the LaTeX | each such heading is set with `secnumdepth` lowered around it, and a numbered level below it skips it, as the site's "1.1" does; each such equation is `equation*`. A bare link to a heading a key numbers prints its number |
+| `unnumbered-headings` | a heading cannot be unnumbered: `# Title {-}` prints "Title {-}" with a number, and the samples' single unnumbered appendix (`\section*`) cannot be written | a trailing `{-}` or `{.unnumbered}` gives `\section*{Title}`, inside `\begin{appendix}` "APPENDIX: TITLE"; a bare link prints its title, `%s` prints `??label`. Site: the suffix and the number go, later sections renumber |
+| `page-links` | a link to another page is written `\href{/page}{...}`, a root-relative URL dead in a standalone PDF | the link's words; with `site.domains` in `myst.yml`, a page no LaTeX export holds gets `\href{https://<domain>/page}{...}` (`BASE_URL` between them when set) |
 
 `xref` writes these forms:
 
@@ -109,10 +114,11 @@ Limitations:
   heading depths, shifted by a numbered `title`, as the site does for a page at the top
   of the table of contents. It skips a frontmatter part, and leaves `subequation` and a
   `start` alone.
-- A link to another page, `[supplement](supplement.md)`, is written
-  `\href{/supplement}{...}`, a root-relative URL that is dead in a standalone PDF. A
-  plugin gets only the tree and the file path, so it can neither build an absolute URL
-  nor tell which export it serves.
+- `unnumbered-headings` catches `{-}` only at the end of the heading's last text, so a
+  heading that ends in math or a role keeps it.
+- `page-links` ignores the URL path of a site not on its own domain unless `BASE_URL` is
+  set for the build. A link holding only an image is left to `linked-images` and stays
+  `\href{/...}`.
 - These repairs add fields the site does not render (`texLabel`, `texItem`,
   `texPhantom`) to nodes in the site JSON.
 
@@ -120,9 +126,10 @@ Limitations:
 
 | Repair | Released mystmd | With the repair |
 | --- | --- | --- |
-| `citation-forms` | every citation becomes `\citet`, `\citep`, or `\cite`: prefix and suffix notes are dropped, `{cite:author}`, `{cite:year}`, and `[-@k]` print in full, and a `{cite:alp}` outside a group prints textually | natbib commands printing what the site prints: `\citep[e.g.][pg. 22]{k}`, `see \citet[p. 3]{k}`, `\citeauthor{k}`, `\citeyearpar{k}` (the site prints "(1987)"), `(\citeauthor{k})` for `{cite:authorpar}`, `\citealp{k}`. Warns when a note holds `@key`: `[@a, prose @b]`, with a comma where `;` belongs, is one cite of `b`, and its note prints `@a` raw (stock dropped the note, and the citation of `a` with it) |
+| `citation-forms` | every citation becomes `\citet`, `\citep`, or `\cite`: prefix and suffix notes are dropped, `{cite:author}`, `{cite:year}`, and `[-@k]` print in full, and a `{cite:alp}` outside a group prints textually | natbib commands printing what the site prints: `\citep[e.g.][pg. 22]{k}`, `see \citet[p. 3]{k}`, `\citeauthor{k}`, `\citeyearpar{k}` (the site prints "(1987)"), `(\citeauthor{k})` for `{cite:authorpar}`, `\citealp{k}`; the starred and capital roles (`{cite:ps}`, `{cite:ts}`, `{cite:ct}`, `{cite:authors}`, `{cite:cauthor}`, `{cite:alps}`), read back from the source, as `\citep*`, `\citet*`, `\Citet`, `\citeauthor*`, `\Citeauthor`, `\citealp*`. Warns when a note holds `@key`: `[@a, prose @b]`, with a comma where `;` belongs, is one cite of `b`, and its note prints `@a` raw (stock dropped the note, and the citation of `a` with it) |
 | `part-citations` | a citation only in a frontmatter part (an `abstract:`, an acknowledgement file, an appendix part) reaches the `.tex` and misses `main.bib`, so the PDF prints `?` ([#3032](https://github.com/jupyter-book/mystmd/issues/3032), fix [#3033](https://github.com/jupyter-book/mystmd/pull/3033)) | the part's keys join `main.bib` after the body's, as #3033 orders them. Site: its reference list shows the part-only keys too |
 | `doi-links` | a doi.org link with its own words or an image, such as a Zenodo badge, becomes a citation of the fetched record, plus a bogus References entry | the link stays a link, `\href{https://doi.org/...}{words}`. Site |
+| `authored-bib` | `main.bib` is re-serialized from citation-js: every capitalized title word is braced, so qe.bst, te.bst and econsoc.bst print reference titles in Title Case where they set sentence case; `@incollection` becomes `@inbook`, dropping the book and its editors; accent macros break (`Rodr\'{\i}guez` loses its accent); a key cited only in raw LaTeX prints `?` | the page's cited entries copied verbatim from the paper's own `.bib` files (with their `@string`s and `crossref` parents) into the `.tex` as `filecontents*` (`\jobname-econsoc.bib`) for BibTeX to read in place of `main.bib`; the `.tex` is then self-contained |
 
 natbib takes one note pair per command, so a group of citations becomes one command
 only when the prefix belongs to the first key and the suffix to the last. Otherwise
@@ -131,11 +138,15 @@ joined with ", " because econsocart sets natbib's separator to a comma.
 
 Limitations:
 
-- `{cite:ps}`, `{cite:ts}`, `{cite:ct}`, `{cite:authors}`, `{cite:cauthor}`, and
-  `{cite:label}` still collapse: the parsed node does not keep a field for the star
-  or the capital.
-- A multi-key `{cite:alp}` parses to adjacent bare citations with no separator, on the
-  site and in the PDF alike.
+- The starred and capital roles are matched to the source by line, so a role inside
+  `{include}`d content, or a line mixing an emphasized role with a bare one, keeps the
+  plain form. On the site they print the plain form, and the items of a multi-key
+  `{cite:alp}` run together. `{cite:label}` prints as `{cite:t}` on both.
+- `authored-bib` keeps `main.bib` for the whole page, with a warning that lists the
+  keys, when a cited key is in no authored `.bib` (a DOI fetched from doi.org), and for
+  a page in a multi-article export, whose one `.tex` per article would overwrite the
+  shared file. It reads the project's `bibliography:` list, or as MyST does every `.bib`
+  under the project, and ignores a page's own `bibliography:` and `extends:`.
 - The site drops a year citation's prefix and an author citation's suffix; the LaTeX
   keeps both.
 - The commands assume natbib, the template's citation package.
@@ -176,7 +187,13 @@ Limitations:
 | Repair | Released mystmd | With the repair |
 | --- | --- | --- |
 | `footnotes` | a footnote in a figure or table caption, or in a table cell, prints its mark and loses its text; a footnote referenced twice prints its body twice, under two numbers | `\footnotemark[...]` at the reference and `\footnotetext[...]` after the float or table; a repeated footnote is `\footnote{...\label{fn:id}}` the first time and `\footref{fn:id}` after |
-| `quotes` | an attribution (`> -- Name` after a blank `>` line) makes a `figure` with `\caption*`; econsocart ignores the star, prints a phantom "FIGURE 0." and floats the quote away from its paragraph | `\begin{quote} ... \par\hfill---Name\end{quote}` in place |
+| `math-labels` | a labelled `{math}` holding `align`, `gather`, `multline`, `alignat`, or `flalign` loses its `\label`, so `[](#eq)` prints "(??)"; a per-row `\label{}` inside is stripped | the node's `\label` on the last row and each row's own label restored from the source; `missing-refs` then resolves a link to a row as `(\ref{x})` |
+| `text-symbols` | a minus sign (U+2212) or a hyphen opening a number prints as a hyphen, "-0.30" where the samples write `$-$0.30`; an arrow (U+2190 to U+21D4) is written as a math command in text mode, "Missing $ inserted"; three periods stay three periods | `$-$`, `$\rightarrow$` (and the other arrows), `\ldots{}` |
+| `abbreviation-spaces` | Theoretical Economics keeps `\nonfrenchspacing`, so "e.g. this" gets a sentence space after the period | `e.g.\ this`, after a closed list of abbreviations; `etc.`, `et al.`, and the like only when no capital follows |
+| `quotes` | an attribution (`> -- Name` after a blank `>` line) makes a `figure` with `\caption*`; econsocart ignores the star, prints a phantom "FIGURE 0." and floats the quote away from its paragraph | `\begin{quote} ... \par\hfill---Name\end{quote}` in place, `quotation` for two or more paragraphs |
+| `quotations` | econsocart's `quote` sets a blockquote of two or more paragraphs with its paragraph breaks hidden | `\begin{quotation}`, each paragraph indented |
+| `text-roles` | Markdown lacks a syntax for sans serif or the TeX logos | new roles: `` {sf}`x` `` writes `\textsf{x}`, `` {logo}`LaTeX` `` (also `TeX`, `LaTeX2e`) writes `\LaTeX{}`. Site: a sans-serif span, the logo's name |
+| `enumerate-labels` | a list cannot be labelled (i), (a) or (A) | a new `{enumerate}` directive, `:::{enumerate} (i)`, writing `\item[{(i)}]`, with `\ref` and links to an item printing its label. Site: each item opens with its label |
 | `smallcaps` | `{sc}` and `{kbd}` text vanishes, logging `Unhandled LaTeX conversion for node of "smallcaps"` (or `"keyboard"`) | `\textsc{...}` and `\texttt{...}` |
 | `linked-images` | an image inside a link, such as a DOI badge, ends with myst-to-tex's blank line, a paragraph break inside `\href{...}{...}`: "Paragraph ended before \href@split was complete", and latexmk carries on in force mode with the link broken | the link's LaTeX with each image written inline, `\href{...}{\includegraphics[width=0.7\linewidth]{...}}` (myst-to-tex's badge width). The site keeps the link |
 | `list-start` | an ordered list from 3 prints from 1 because econsocart reads myst-to-tex's `[resume]` as a label width; a numbered list in a table cell prints from 0 | `\begin{enumerate}\setcounter{enumi}{2}`, at the list's nesting level, and `3.~~` items in a cell. Site: a link to an item of such a list reads "Item 3" |
@@ -194,14 +211,24 @@ Limitations:
 - `{kbd}` keeps its node for the site's key box, so the log still shows the
   `"keyboard"` line, from the `\iffalse` copy, though the PDF is right. Small caps
   inside an italic theorem body log a font substitution (`T1/put/m/scit`).
+- `math-labels` skips starred environments, `:enumerated: false` and table cells; a
+  display from an `{include}`d file gets only its node's label. On the site a link to a
+  row's label prints empty, as in stock MyST.
+- `text-symbols` leaves the hyphen in `$x$-1` and in table cells, which `table-columns`
+  writes. `abbreviation-spaces` keeps a closed list and does not set `\@` after a
+  capital at a sentence's end.
+- `enumerate-labels` draws the site's labels with the theme's Tailwind classes, and the
+  list loses the prose spacing; items nested under a labelled item get
+  `target-labels`' "1(a)" numbers; Typst does not get the labels.
 
 ### Floats, macros and parts
 
 | Repair | Released mystmd | With the repair |
 | --- | --- | --- |
 | `raw-tables` | a `{table}` wrapping a raw tabular writes the tabular inside `\caption{}`, flush left | `\caption{...}\label{...}` and then the tabular, in the table float |
-| `table-columns` | a pipe table gets equal-width `p{}` columns, so a column of short numbers takes as much room as one of sentences | `l`, `c`, or `r` for short columns, `tabularx` `X` columns for text |
-| `subfigures` | a multi-image `{figure}` nests a figure per image and gives its label to a panel: "Not in outer par mode", `\ref` prints `??` | one figure of `subfigure` panels, labelled as a whole |
+| `table-columns` | a pipe table gets equal-width `p{}` columns, so a column of short numbers takes as much room as one of sentences; an HTML table with a `colspan` writes `NaN\linewidth` into the column spec and stops LaTeX (no PDF, exit 0), a `rowspan` shifts the cells; a negative number prints a hyphen | `l`, `c`, or `r` for short columns, `tabularx` `X` columns for text, number columns right-aligned under centred headers as in the samples; `\multicolumn`, `\multirow`, and `\cmidrule` for spans; `$-$` in cells |
+| `table-notes` | the paragraphs under a `{table}` print inside its title, merged into `\caption` | the caption alone, and the notes after the tabular as one `\legend{}`, which econsocart prints as "Note:" under the table |
+| `subfigures` | a `{figure}` of panels nests a figure per panel and gives its label to a panel: "Not in outer par mode", `\ref` prints `??`; a panel's notes are lost | one float of `subfigure` panels of any content (images, tables, nested panels lettered as on the site, panel notes); a `{table}` of tables as `subtable`s with captions above and a `\legend` |
 | `boxed-floats` | a figure or table inside an admonition (a `framed` box) or an `{epigraph}`: "Not in outer par mode", the float is lost, references print `??` | the float moves to just after the outermost box |
 | `block-breaks` | the paragraph after a theorem, a quote, an exercise or any block a repair rewrote runs on from `\end{...}`, unindented, as the same paragraph: myst-to-tex's proof handler writes `\end{theorem}` and stops (`proof.js`), and a repair's raw block ends where its LaTeX ends | a LaTeX-only blank line after each native proof and each raw node with children in block content; the site draws it as an empty span. No upstream issue is filed |
 | `macros` | myst-to-tex does not define a `math:` macro used only in raw LaTeX, or in a block a repair renders; xelatex stops at the raw block, far from the cause | one `\providecommand` per macro the raw LaTeX uses, at the start of the page |
@@ -218,13 +245,19 @@ Limitations:
   the file's own frontmatter `math:`. It does not follow `extends:`. A file part uses
   its own frontmatter instead of its page's. A definition placed inside the abstract is
   local to that environment.
-- `raw-tables` always puts the caption first. Notes from the legend follow the tabular.
-- `table-columns` skips tables with a column or row span and `multipage` tables, and
-  keeps MyST's own output when the short columns alone would be wider than 396 pt. It
-  estimates widths from character counts, writes `\midrule` where MyST wrote `\hline`,
-  and drops myst-to-tex's `\displaystyle` in table math.
-- `subfigures` handles panels of one image each. A panel with no width gets
-  `0.96/n` of the line. The legend joins the caption, as myst-to-tex does.
+- `raw-tables` always puts the caption first. Notes from the legend follow the tabular
+  as `\legend{}`.
+- `table-columns` gives a table too wide for natural columns MyST's equal `p{}`
+  columns, with the span and minus fixes. It estimates widths from character counts,
+  leaves span cells out of the estimate, sets every span `c` (a span over `X` columns
+  does not wrap), writes `\midrule` where MyST wrote `\hline`, and drops myst-to-tex's
+  `\displaystyle` in table math. No MyST syntax sets a table `multipage`, so a long
+  table cannot become a `longtable`.
+- `table-notes` joins the notes with `\endgraf` (econsocart's `\legend` is not long),
+  so the second starts unindented, and a list in the notes prints plain.
+- `subfigures` sets non-image panel content at its natural width, which can overflow its
+  share. Unlabelled nested panels letter after their inner ones, and MyST itself labels
+  a nested figure's images in a way that can collide with sibling labels.
 - `boxed-floats` does not handle a float inside a footnote.
 - `part-headings` leaves MyST's enumerators at the old depth; LaTeX numbers its own
   headings, so only the LaTeX numbering changes.
@@ -256,11 +289,20 @@ Limitations:
   start print in the PDF as on the site (`unnumbered-proofs`, `section-numbering`,
   `list-start`). A bare link to a solution prints "Solution to Exercise 1" in place of
   `??label`.
+- Reference titles print in the sentence case the journal's style sets, from the
+  paper's own `.bib`, and the `.tex` carries those entries (`authored-bib`). A title
+  that must keep a capital needs braces in the `.bib`, `{Bayesian}`, as in hand-written
+  LaTeX.
+- Tables set number columns right-aligned under centred headers, minus signs print as
+  minus signs, and table notes print as "Note:" under the table (`table-columns`,
+  `text-symbols`, `table-notes`). Links to other pages print as their words
+  (`page-links`).
 - The `.tex` holds an `\iffalse ...\fi{}` copy after each repaired inline node
   ([Raw nodes](#raw-nodes)).
-- The site changes in the six ways the tables mark "Site": claim and fact boxes, DOI
-  links that stay links, item links that read "Item 2", item links that count from a
-  list's start, stacked labels that resolve, and part-only keys in the reference list.
+- The site changes where the tables mark "Site": claim and fact boxes, DOI links that
+  stay links, item links that read "Item 2" or an `{enumerate}` label, item links that
+  count from a list's start, stacked labels that resolve, part-only keys in the
+  reference list, `{-}` headings without a number, and the new roles and directive.
 
 ## Building
 
@@ -282,7 +324,9 @@ committed bundle does not load, is stale against its source, or was built for an
 mystmd. It asserts the emitted LaTeX, `main.bib` and the site
 pages: a `jq` pass finds any `raw` node with children left in phrasing content, and a
 scan of the `.tex` finds text that runs on after the `\end` of a theorem-like
-environment or a quote (`block-breaks`). A rejection run per repair then rebuilds the
+environment or a quote (`block-breaks`). The full run checks the template's own
+lines too: the author particle and suffix, the upright definition style, emphasis in
+theorems, curly frontmatter quotes and letters past Latin-1. A rejection run per repair then rebuilds the
 fixture with that repair switched off and requires the repair's own assertions to
 fail; when they pass, a mystmd release has fixed the bug and the check says to delete
 the repair. With `--pdf` it also compiles the fixture and checks the PDF text: each

@@ -131,7 +131,7 @@ Configure via `exports` in frontmatter:
 | `draft` | boolean | `false` | Draft mode for initial submission |
 | `supplement` | boolean | `false` | Supplementary material document |
 | `seceqn` | boolean | `false` | Number equations by section (e.g., Equation 2.1) |
-| `linenumbers` | boolean | `false` | Adds line numbers to a non-draft build. A draft numbers its lines regardless. This option cannot switch them *off* there, because the template never emits the class's `nolinenumbers` option. |
+| `linenumbers` | boolean | `false` | Adds line numbers to a non-draft build. A draft numbers its lines unless `linenumbers: false` is set explicitly. |
 | `extra_packages` | string | (none) | Comma-separated LaTeX packages to load, e.g. `mhchem,cancel` (see [LaTeX Packages](#latex-packages)) |
 
 The `open_access` frontmatter field automatically enables the econsocart `openaccess` class option. It produces no visible change in a PDF you build: the license statement it controls is part of the copyright block, which the journal adds during production. Measured in both preprint and non-preprint builds.
@@ -143,7 +143,16 @@ The `open_access` frontmatter field automatically enables the econsocart `openac
 Write `&`, `%`, `#`, `_` in your title, keywords, JEL codes, author names and
 affiliations as ordinary characters. The template escapes them. Titles keep `_`, `~`,
 and `^` unescaped so `$x_1$` still renders as math, which means a *literal*
-underscore in a title is the one case you must write as `\_` yourself.
+underscore in a title is the one case you must write as `\_` yourself. Paired
+straight double quotes become ``` ``...'' ```, and `Supplement to "Title"` prints
+curly quotes. Letters beyond Latin-1 (the Hungarian double acute, the Polish
+barred L, the Czech caron, the euro sign) print under xelatex in every field and
+in the body. The T1 fonts lack the Vietnamese horn and hook-above letters.
+
+Name fields: a `non_dropping_particle` or `dropping_particle` ("van" in "Vincent van
+Gogh") prints as econsocart's `\particle`. For a suffix, write the name structured,
+`name: {given: George, family: Lucas, suffix: Jr.}`; MyST misparses "Jr." in a plain
+name string.
 
 Author emails are not escaped, because `\ead` builds a `mailto:` link that `\_`
 would break. An address containing `&`, `%`, or `#` fails the build loudly.
@@ -345,13 +354,13 @@ This template uses MyST native features wherever possible and falls back to raw 
 - **Math**: Standard MyST math with `$...$` and `` ```math `` blocks
 - **Inline code**: backticks, rendered as `\texttt{...}` (not `\verb`)
 - **Headings**: Markdown `#`, `##`, `###` for sections
-- **Small caps and sans serif**: `` {sc}`X` `` with the plugin. Sans serif, and small caps without the plugin, take inline LaTeX, `\textsf{}` and `\textsc{}` (see [Real limitations](#real-limitations-a-qe-feature-myst-cannot-reproduce-in-the-pdf))
+- **Small caps and sans serif**: `` {sc}`X` `` and `` {sf}`X` `` with the plugin. Without it, both take inline LaTeX, `\textsc{}` and `\textsf{}` (see [Real limitations](#real-limitations-a-qe-feature-myst-cannot-reproduce-in-the-pdf))
 
 #### Citations
 
 - `` {cite:t}`ref` `` for textual citations (e.g., "Smith (2020)") renders as `\citet{}`
 - `` {cite:p}`ref` `` for parenthetical citations (e.g., "(Smith 2020)") renders as `\citep{}`
-- MyST recognizes other roles too (`{cite:author}`, `{cite:year}`, ...), and citation prefixes and suffixes. With the plugin, its `citation-forms` repair writes each as the site prints it ([plugins/README.md](plugins/README.md#citations)). Without the plugin, MyST's LaTeX renderer collapses them all to `\citet`/`\citep` and drops the notes, so the QE sample's author-only (`\citeauthor`) and year-only (`\citeyear`) cites need raw LaTeX; see [Limitations and Fidelity](#myst-limitations-and-fidelity-to-the-qeecma-template). See also the [MyST Citations Guide](https://mystmd.org/guide/citations).
+- MyST recognizes other roles too (`{cite:author}`, `{cite:year}`, ...), and citation prefixes and suffixes. With the plugin, its `citation-forms` repair writes each as the site prints it, adds natbib's starred and capital forms as roles (`{cite:ps}` for `\citep*`, `{cite:ct}` for `\Citet`), and its `authored-bib` repair resolves a key cited only in raw LaTeX ([plugins/README.md](plugins/README.md#citations)). Without the plugin, MyST's LaTeX renderer collapses them all to `\citet`/`\citep` and drops the notes, so the QE sample's author-only (`\citeauthor`) and year-only (`\citeyear`) cites need raw LaTeX; see [Limitations and Fidelity](#myst-limitations-and-fidelity-to-the-qeecma-template). See also the [MyST Citations Guide](https://mystmd.org/guide/citations).
 - `` {cite}`a,b` `` is narrative, "Aumann (1987), Nash (1950)," on the site and in the PDF alike, by MyST's design. Write `{cite:p}` for a parenthetical citation.
 
 #### Lists
@@ -405,7 +414,9 @@ This template uses MyST native features wherever possible and falls back to raw 
 
 MyST proof directives that produce correct LaTeX output when the title is plain words.
 A title holding math, an abbreviation, a role, or a `{prf:ref}` comes out whole only
-through the plugin's `proof-titles` repair.
+through the plugin's `proof-titles` repair. As in the hand-written samples, Definition,
+Example and Remark print upright and the other kinds in italics; emphasis inside an
+italic body switches to upright.
 
 | MyST Directive | LaTeX Environment |
 | --- | --- |
@@ -554,8 +565,8 @@ Authoring in Markdown means the generated LaTeX is not byte-identical to a hand-
 | Preamble | you write `\usepackage` lines | injected automatically (see [LaTeX Packages](#latex-packages)) |
 | Inline code | `` \verb|\cmd| `` | `\texttt{{\textbackslash}cmd}` |
 | Equation arrays | `eqnarray` | `align` (the non-deprecated equivalent) |
-| Long quotation | `\begin{quotation}` | `\begin{quote}` (all blockquotes) |
-| Emphasis | `\emph{}` | `\textit{}` |
+| Long quotation | `\begin{quotation}` | `\begin{quote}`; with the plugin's `quotations` repair, `quotation` for a quote of several paragraphs |
+| Emphasis | `\emph{}` | `\textit{}`, which template.tex makes act as `\emph` inside an italic theorem |
 | Figures | `\includegraphics{figure_sample}` | `files/figure_sample-<hash>.pdf` (assets copied and content-hashed) |
 | Paragraph headings | `\paragraph*{Heading}` | `\textbf{Heading}`, which runs in identically |
 | Bibliography | a hand-maintained `thebibliography` with 10 `\bibitem`s | `\bibliographystyle` + `\bibliography`, so BibTeX builds it from `references.bib` using the journal's own `.bst` |
@@ -583,11 +594,11 @@ upstream showing a truly small-capped example where this sample shows roman.
 | Feature | Limitation | Workaround |
 | --- | --- | --- |
 | Appendix cross-references | `@appA` renders "Section A" rather than "Appendix A". The letter resolves correctly; only the label word is wrong. MyST's LaTeX renderer **discards link text entirely** for section-type targets, so `[Appendix A](#appA)` also renders "Section A", as do `{number}`, `{name}`, and `%s` placeholders | the plugin's `xref` repair ([plugins/README.md](plugins/README.md#references-and-labels)). Without it, use raw LaTeX where the word matters: `` {raw:latex}`Appendix~\ref{appA}` `` renders "Appendix A" (see [Appendices](#appendices)). It does not appear in HTML output, so use it only in PDF-targeted prose |
-| `@incollection` entries lose their volume and editors | MyST's bibliography round-trip **re-types `@incollection` as `@inbook`** in the emitted `main.bib`. The two differ in which fields the `.bst` reads: `incollection` prints "In *Book* (Eds., eds.)", while `inbook` puts the entry's own `title` in book position and ignores `booktitle` and `editor` when `author` is present. A chapter therefore renders as a standalone monograph. BibTeX's only signal is the warning `can't use both author and editor fields` | add a `note` field carrying the volume and editors; it survives the retyping. See `b4` in [`sample/references.bib`](sample/references.bib) |
-| Author-only / year-only citations, and citation prefixes/suffixes | Every MyST citation form collapses to `\citet`, `\citep`, or `\cite`. `{cite:author}` and `{cite:year}` are not distinguished, and prefix/suffix text is **silently dropped**: `[e.g. @b1, pg. 22]` and `` {cite:p}`{see}b1{fig 1}` `` emit a bare `\citep{b1}`, while `@b1 [pg. 22]` emits `\cite{b1}`, which natbib renders *textually* as "Aumann (1987)" rather than parenthetically | the plugin's `citation-forms` repair ([plugins/README.md](plugins/README.md#citations)). Without it, raw LaTeX gives all of them back: `` {raw:latex}`\citeauthor{b1}` `` renders "Aumann", `` {raw:latex}`\citeyear{b1}` `` renders "1987", and `` {raw:latex}`\citep[e.g.][pg. 22]{b1}` `` renders "(e.g. Aumann, 1987, pg. 22)". **The key must also be cited once through a normal MyST role somewhere in the document**, because MyST only writes keys it parses into the generated `main.bib`; a raw-only key renders as `?` |
+| Reference titles and `@incollection` entries | MyST re-serializes your `.bib` into `main.bib`. It braces every capitalized title word, which keeps titles in Title Case where the journal styles set sentence case. It also re-types `@incollection` as `@inbook`, and a chapter then prints as a monograph without its book and editors | the plugin's `authored-bib` repair, which hands BibTeX your own entries ([plugins/README.md](plugins/README.md#citations)). Without it, write titles in sentence case with braces only on proper nouns, and put the volume and editors in a `note` field, which survives the re-typing (see `b4` in [`sample/references.bib`](sample/references.bib)) |
+| Author-only / year-only citations, and citation prefixes/suffixes | Every MyST citation form collapses to `\citet`, `\citep`, or `\cite`. `{cite:author}` and `{cite:year}` are not distinguished, and prefix/suffix text is **silently dropped**: `[e.g. @b1, pg. 22]` and `` {cite:p}`{see}b1{fig 1}` `` emit a bare `\citep{b1}`, while `@b1 [pg. 22]` emits `\cite{b1}`, which natbib renders *textually* as "Aumann (1987)" rather than parenthetically | the plugin's `citation-forms` repair ([plugins/README.md](plugins/README.md#citations)). Without it, raw LaTeX gives all of them back: `` {raw:latex}`\citeauthor{b1}` `` renders "Aumann", `` {raw:latex}`\citeyear{b1}` `` renders "1987", and `` {raw:latex}`\citep[e.g.][pg. 22]{b1}` `` renders "(e.g. Aumann, 1987, pg. 22)". **Without the plugin, the key must also be cited once through a normal MyST role somewhere in the document**, because MyST only writes keys it parses into the generated `main.bib`, and a raw-only key renders as `?`; the plugin's `authored-bib` resolves it from your `.bib` |
 | `claim` / `fact` results | see [Proof directives](#proof-directives) below | the plugin's `claim-fact` repair. Without it, `{prf:proposition}` / `{prf:observation}`, or a `{raw} latex` `\begin{claim}` block (the environments are defined) |
-| Small caps / sans serif in text | no Markdown syntax. `\textsc{X}` written bare in Markdown is **escaped to literal text** (`{\textbackslash}textsc\{X\}`), and the `` {sc}`X` `` role **silently drops its content** in the PDF, logging `Unhandled LaTeX conversion for node of "smallcaps"` while still exiting 0, though both look like they work | `` {sc}`X` `` with the plugin's `smallcaps` repair ([plugins/README.md](plugins/README.md#running-text)). `` {raw:latex}`\textsf{X}` `` for sans serif, and `` {raw:latex}`\textsc{X}` `` for small caps without the plugin, where `` {sc}`X` `` renders correctly only in HTML |
-| LaTeX logo macros in prose | Markdown has no `\LaTeXe` / `\TeX`, so writing them as text renders "LaTeX2e" where the hand-written sample renders the proper logo | `` {raw:latex}`\LaTeXe` `` when the logo matters; cosmetic otherwise |
+| Small caps / sans serif in text | no Markdown syntax. `\textsc{X}` written bare in Markdown is **escaped to literal text** (`{\textbackslash}textsc\{X\}`), and the `` {sc}`X` `` role **silently drops its content** in the PDF, logging `Unhandled LaTeX conversion for node of "smallcaps"` while still exiting 0, though both look like they work | `` {sc}`X` `` with the plugin's `smallcaps` repair, and `` {sf}`X` `` with its `text-roles` repair ([plugins/README.md](plugins/README.md#running-text)). Without the plugin, `` {raw:latex}`\textsf{X}` `` and `` {raw:latex}`\textsc{X}` ``; `` {sc}`X` `` then renders correctly only in HTML |
+| LaTeX logo macros in prose | Markdown has no `\LaTeXe` / `\TeX`, so writing them as text renders "LaTeX2e" where the hand-written sample renders the proper logo | `` {logo}`LaTeX2e` `` (also `LaTeX`, `TeX`) with the plugin's `text-roles` repair; without it, `` {raw:latex}`\LaTeXe` `` |
 | Footnotes inside a figure or table caption, or a table cell | **silently dropped from the PDF** while rendering normally on the website, so the note exists online and is missing from the manuscript. A footnote referenced twice prints its text twice. Body footnotes are otherwise unaffected | the plugin's `footnotes` repair ([plugins/README.md](plugins/README.md#running-text)). Without it, put the note in the body text, or fold it into the caption itself |
 | `{prf:criterion}`, `{prf:property}` | body text **dropped from the PDF**, rendered normally in HTML; both log "Unhandled LaTeX proof environment" | the plugin's `proof-kinds` repair. Without it, use one of the 13 supported kinds, or a `{raw} latex` block |
 | `{prf:claim}`, `{prf:fact}`, `{prf:exercise}`, `{prf:solution}` | **not MyST proof kinds at all.** HTML shows an "Unknown Directive" error box with the raw source below it; the PDF gets nothing, and **no log line is emitted**, so watching the build log will not save you | `{prf:claim}` and `{prf:fact}` with the plugin's `claim-fact` repair. For exercises, MyST's own `{exercise}` and `{solution}`, which reach the PDF with the plugin's `exercises` repair. Without the plugin, use `{prf:proposition}`, `{prf:example}`, or `{prf:remark}` |
