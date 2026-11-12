@@ -1,3 +1,24 @@
+// The float, macro and part repairs: raw-tables, table-columns, subfigures, boxed-floats,
+// ignored-images, block-breaks, macros and part-headings.
+
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import {
+  collect,
+  escapeRegExp as escapeRe,
+  labelOf,
+  pageParts,
+  projectConfig,
+  rawLatex,
+  readFrontmatter,
+  renderTex,
+  replaceNode as replace,
+  texOnly,
+  textOf,
+  walk,
+} from './util.mjs';
+
 // LaTeX for four float layouts released myst-to-tex (mystmd 1.12.0) gets wrong, each at exit 0:
 //   raw-tables     A `{table}` wrapping a raw tabular writes the tabular INSIDE `\caption{}`, flush
 //                  left, because MyST files raw content under the caption's legend.
@@ -13,11 +34,6 @@
 // copies the images and rewrites their urls (finalizeMdast runs after the project stage, on the
 // same tree), so a rendered image path is the exported one. Children hold the original node, so
 // the site is unchanged. Last, ignored-images warns of a figure a clean checkout lacks.
-
-import { execFileSync } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
-import { collect, labelOf, rawLatex, renderTex, replaceNode as replace, textOf } from './util.mjs';
 
 // Each raw node made here -> whether it sets a float, which boxed-floats lifts out
 const LAZY = new WeakMap();
@@ -48,7 +64,7 @@ function captionTex(container, content, footnotes, file) {
 }
 
 // raw-tables: the caption first, as the class sets tables, then the raw tabular and any notes
-const rawTables = {
+const rawTablesTransform = {
   name: 'floats-raw-tables',
   doc: 'Writes a {table} holding a raw tabular as a table float, the tabular outside the caption',
   stage: 'project',
@@ -139,7 +155,7 @@ function tabularTex(table, spec, inContainer, footnotes, file) {
   return inContainer ? `\n${tex}\n` : `\n\\bigskip\\noindent\n${tex}\n\\bigskip\n\n`;
 }
 
-const tableColumns = {
+const tableColumnsTransform = {
   name: 'floats-table-columns',
   doc: 'Sizes the columns of a markdown table by their content, in place of equal-width p{} columns',
   stage: 'project',
@@ -165,7 +181,7 @@ const isBox = (node) => node.type === 'admonition' || node.type === 'container';
 const without = (node, drop) =>
   node.children ? { ...node, children: node.children.filter((c) => !drop.has(c)).map((c) => without(c, drop)) } : node;
 
-const boxedFloats = {
+const boxedFloatsTransform = {
   name: 'floats-boxed-floats',
   doc: 'Moves a figure or table out of an admonition or another float, so it sets in outer par mode',
   stage: 'project',
@@ -207,7 +223,7 @@ const panelImage = (sub) => {
   return content.length === 1 && content[0].type === 'image' ? content[0] : null;
 };
 
-const subfigures = {
+const subfiguresTransform = {
   name: 'floats-subfigures',
   doc: 'Writes a multi-image figure as one figure of subfigures, its label on the figure',
   stage: 'project',
@@ -244,7 +260,7 @@ const subfigures = {
 // checkout (CI, a co-author) lacks, so that site publishes a hole and that PDF loses the figure.
 const IMAGE_EXTENSIONS = ['', '.pdf', '.png', '.jpg', '.jpeg', '.svg', '.gif', '.webp'];
 
-const ignoredImages = {
+const ignoredImagesTransform = {
   name: 'floats-ignored-images',
   doc: 'Warns of each image that is on disk but gitignored, so a clean checkout lacks it',
   stage: 'document',
@@ -274,8 +290,164 @@ const ignoredImages = {
 };
 
 // index.mjs runs boxed-floats after the other three, since it lifts the floats they make
-export const rawTablesRepair = { repair: 'raw-tables', transforms: [rawTables] };
-export const tableColumnsRepair = { repair: 'table-columns', transforms: [tableColumns] };
-export const subfiguresRepair = { repair: 'subfigures', transforms: [subfigures] };
-export const boxedFloatsRepair = { repair: 'boxed-floats', transforms: [boxedFloats] };
-export const ignoredImagesRepair = { repair: 'ignored-images', transforms: [ignoredImages] };
+export const rawTables = { repair: 'raw-tables', transforms: [rawTablesTransform] };
+export const tableColumns = { repair: 'table-columns', transforms: [tableColumnsTransform] };
+export const subfigures = { repair: 'subfigures', transforms: [subfiguresTransform] };
+export const boxedFloats = { repair: 'boxed-floats', transforms: [boxedFloatsTransform] };
+export const ignoredImages = { repair: 'ignored-images', transforms: [ignoredImagesTransform] };
+
+// ---------------------------------------------------------------------------------------------
+// block-breaks
+// Stock myst-to-tex closes no block after a proof (proof.js writes `\end{theorem}` and stops), and
+// a raw block ends where its LaTeX ends, so the paragraph after a theorem, a quote or any block a
+// repair wrote ran on from `\end{...}` and LaTeX set it unindented, as the same paragraph. A
+// LaTeX-only blank line after each one ends the paragraph there; the site draws it as an empty span.
+
+// Parents whose children are blocks: a break anywhere else would land inside running text
+const FLOW = new Set(['root', 'block', 'proof', 'admonition', 'exercise', 'solution', 'div', 'listItem', 'footnoteDefinition']);
+const BREAK = '\n\n';
+// Childless first, so the check never reads the lazy `tex` of a repair's raw node
+const isBreak = (node) => node?.type === 'raw' && !node.children && node.tex === BREAK;
+
+const blockBreaksTransform = {
+  name: 'block-breaks',
+  doc: 'Ends the paragraph after each proof and raw block in the LaTeX export',
+  stage: 'project',
+  plugin: () => (tree) => {
+    const after = [];
+    walk(tree, (node, parent) => {
+      // A raw node with children stands for a block a repair rewrote; a childless one is a command
+      if (FLOW.has(parent?.type) && (node.type === 'proof' || (node.type === 'raw' && node.children?.length))) after.push([parent, node]);
+    });
+    for (const [parent, node] of after) {
+      const i = parent.children.indexOf(node);
+      if (!isBreak(parent.children[i + 1])) parent.children.splice(i + 1, 0, texOnly(BREAK));
+    }
+  },
+};
+
+export const blockBreaks = { repair: 'block-breaks', transforms: [blockBreaksTransform] };
+
+// ---------------------------------------------------------------------------------------------
+// macros
+// Definitions for math macros used only in raw LaTeX. myst-to-tex writes a `\newcommand` for a
+// `math:` macro (myst.yml `project.math` or page frontmatter) only when its own math nodes use
+// it, and a raw node is opaque to that scan: a macro used only in a raw block, or in a block a
+// repair here renders itself (proof kinds, floats), gets no definition, and xelatex stops at the
+// raw block, far from the cause, with `myst build` still at exit 0.
+//
+// Runs last at project stage, so the raw nodes the other repairs make are there to scan. Each
+// macro the raw LaTeX uses, and each macro their definitions use, gets one `\providecommand` in a
+// raw node opening the document: a no-op where MyST defines it too. The site renders nothing.
+
+const macroBody = (value) => (typeof value === 'string' ? value : value?.macro);
+
+// The macros `text` uses, by whole name: `\HR` is not used by `\HRat`
+const usedIn = (text, names) => names.filter((name) => new RegExp(`${escapeRe(name)}(?![A-Za-z])`).test(text));
+
+// Close the set under use inside definitions (myst-to-tex withRecursiveCommands)
+function withDependencies(used, macros) {
+  const all = new Set(used);
+  const names = Object.keys(macros);
+  for (const name of all) usedIn(macros[name], names).forEach((dep) => all.add(dep));
+  return all;
+}
+
+// LaTeX the export writes, split into raw LaTeX and the math myst-to-tex scans itself
+function scan(tree) {
+  const raw = [];
+  const math = [];
+  const visit = (node) => {
+    if (node.type === 'raw') {
+      // Its children are the site's copy; LaTeX sees `tex` alone
+      if (node.tex && (node.lang ?? 'latex').match(/^(la)?tex$/)) raw.push(node.tex);
+      return;
+    }
+    if ((node.type === 'math' || node.type === 'inlineMath') && node.value) math.push(node.value);
+    node.children?.forEach(visit);
+  };
+  visit(tree);
+  return { raw: raw.join('\n'), math: math.join('\n') };
+}
+
+const argCount = (body) => Math.max(0, ...[...body.matchAll(/#([1-9])/g)].map((m) => Number(m[1])));
+
+const rawMacros = {
+  name: 'macros-raw',
+  doc: 'Defines the math macros that only raw LaTeX uses, which myst-to-tex leaves undefined',
+  stage: 'project',
+  plugin: () => (tree, vfile) => {
+    const file = vfile.path?.replace(/#.*$/, '');
+    if (!file) return;
+    const entries = { ...projectConfig(path.dirname(file)).math, ...readFrontmatter(file).math };
+    const macros = Object.fromEntries(
+      Object.entries(entries)
+        .map(([name, value]) => [name, macroBody(value)])
+        .filter(([name, body]) => name.startsWith('\\') && typeof body === 'string'),
+    );
+    const names = Object.keys(macros);
+    if (!names.length) return;
+    const { raw, math } = scan(tree);
+    const mystDefines = withDependencies(usedIn(math, names), macros);
+    const needed = [...withDependencies(usedIn(raw, names), macros)].filter((name) => !mystDefines.has(name));
+    if (!needed.length) return;
+    const lines = needed.map((name) => {
+      const n = argCount(macros[name]);
+      return `\\providecommand{${name}}${n ? `[${n}]` : ''}{${macros[name]}}`;
+    });
+    tree.children.unshift({ type: 'raw', lang: 'latex', tex: `${lines.join('\n')}\n` });
+  },
+};
+
+export const macros = { repair: 'macros', transforms: [rawMacros] };
+
+// ---------------------------------------------------------------------------------------------
+// part-headings
+// Heading depth in frontmatter parts (jupyter-book/mystmd#2351, fix in #2352, unmerged). MyST
+// numbers a page's headings from the export's article level (0 in a single-article export, so
+// `#` is \section), but transforms each part with no level, as on the site, so a part's `#`
+// becomes \subsection: an appendix part `parts: {appendix: appendix.md}` loses its letters.
+//
+// A plugin cannot tell an export from the site, but the page's depth shows which: MyST runs the
+// document stage of every file once per export (its article at depth 1, the rest at 2, the
+// site's way) and once for the site, each page before its parts, and only then any project
+// stage. So when a part's document stage runs, its page's top heading depth is the one of the
+// same run, and a part whose top heading sits deeper is shifted up to match it there. On the
+// site, and where the page is only another export's dependency, both sit at 2 and nothing moves.
+
+// Page -> its top heading depth in the run under way; part file -> its page
+const pageDepth = new Map();
+const pageOfPart = new Map();
+
+function shallowest(tree) {
+  let depth = Infinity;
+  walk(tree, (node) => {
+    if (node.type === 'heading' && node.depth < depth) depth = node.depth;
+  });
+  return depth;
+}
+
+const alignDepths = {
+  name: 'parts-align-depths',
+  doc: 'Lifts the headings of a frontmatter part to the depth of its page headings',
+  stage: 'document',
+  plugin: () => (tree, vfile) => {
+    const file = vfile.path;
+    if (!file) return;
+    // An inline part is `<page>#parts.<name>`; a page names its file parts in its frontmatter
+    const page = file.includes('#') ? file.slice(0, file.indexOf('#')) : pageOfPart.get(file);
+    if (!page) {
+      pageDepth.set(file, shallowest(tree));
+      if (fs.existsSync(file)) for (const part of pageParts(file)) if (part.file) pageOfPart.set(part.file, file);
+      return;
+    }
+    const shift = shallowest(tree) - (pageDepth.get(page) ?? Infinity);
+    // NaN or Infinity when either has no heading: nothing to align with
+    if (!(shift > 0 && Number.isFinite(shift))) return;
+    walk(tree, (node) => {
+      if (node.type === 'heading') node.depth -= shift;
+    });
+  },
+};
+
+export const partHeadings = { repair: 'part-headings', transforms: [alignDepths] };

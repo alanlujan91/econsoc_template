@@ -127,7 +127,7 @@ export function siteSafe(node) {
   });
 }
 
-// A proof in a subtree renderTex renders goes to proof-kinds.mjs's writer, which registers here
+// A proof in a subtree renderTex renders goes to proofs.mjs's writer, which registers here
 // (util cannot import it): the bundled proof handler mangles titles and drops four kinds
 let proofWriter = () => undefined;
 export const setProofWriter = (write) => {

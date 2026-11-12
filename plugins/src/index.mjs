@@ -10,37 +10,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import pkg from '../package.json' with { type: 'json' };
-import algorithmLines from './algorithm-lines.mjs';
-import blockBreaks from './block-breaks.mjs';
-import citationForms from './citations.mjs';
-import claimFact from './claim-fact.mjs';
-import doiLinks from './doi-citations.mjs';
-import exercises from './exercises.mjs';
+import { citationForms, doiLinks, partCitations } from './citations.mjs';
+import { blockBreaks, boxedFloats, ignoredImages, macros, partHeadings, rawTables, subfigures, tableColumns } from './floats.mjs';
+import { algorithmLines, claimFact, exercises, proofKinds, proofTitles } from './proofs.mjs';
 import {
-  boxedFloatsRepair as boxedFloats,
-  ignoredImagesRepair as ignoredImages,
-  rawTablesRepair as rawTables,
-  subfiguresRepair as subfigures,
-  tableColumnsRepair as tableColumns,
-} from './floats.mjs';
-import footnotes from './footnotes.mjs';
-import inlineRaws from './inline-raws.mjs';
-import labelCase from './label-case.mjs';
-import linkedImages from './linked-images.mjs';
-import macros from './macros.mjs';
-import missingRefs from './missing-refs.mjs';
-import partCitations from './part-citations.mjs';
-import partHeadings from './parts.mjs';
-import proofKinds from './proof-kinds.mjs';
-import proofTitles from './proof-titles.mjs';
-import quotes from './quotes.mjs';
-import rawRefs from './raw-refs.mjs';
-import sectionNumbering from './section-numbering.mjs';
-import smallcaps from './smallcaps.mjs';
-import stackedLabels from './stacked-labels.mjs';
-import targetLabels from './target-labels.mjs';
-import unnumberedRefs from './unnumbered-refs.mjs';
-import xref from './xref.mjs';
+  labelCase,
+  missingRefs,
+  rawRefs,
+  sectionNumbering,
+  stackedLabels,
+  targetLabels,
+  unnumberedRefs,
+  xref,
+} from './refs.mjs';
+import { footnotes, inlineRaws, linkedImages, quotes, smallcaps } from './text.mjs';
 
 const REPAIRS = [
   // Inline. doi-links restores its links before anything renders them, linked-images first;

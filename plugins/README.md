@@ -265,7 +265,8 @@ Limitations:
 ## Building
 
 `econsoc.mjs` is generated: `build.mjs` bundles `src/index.mjs`, the repairs it lists
-(one module each under `src/`, helpers in `src/util.mjs`), and the exact versions in
+(`refs.mjs`, `citations.mjs`, `proofs.mjs`, `text.mjs`, and `floats.mjs`, one per section of
+this README, helpers in `src/util.mjs`), and the exact versions in
 `package.json`. Never edit the bundle. Rebuild it with
 `cd plugins && npm ci && npm run build`; `node build.mjs --check` fails when the
 committed bundle differs from a fresh build. To try a repair in isolation, bundle

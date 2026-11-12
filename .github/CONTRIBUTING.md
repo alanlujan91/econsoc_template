@@ -203,7 +203,7 @@ When modifying template files:
      `check-upstream-drift` enforces that the root copies match the pinned
      submodules.
 4. **`plugins/`**: the econsoc plugin
-   - Edit `plugins/src/` (one module per repair, shared helpers in `util.mjs`),
+   - Edit `plugins/src/` (one module per README section, one named export per repair, shared helpers in `util.mjs`),
      never the generated `econsoc.mjs`. Rebuild it with
      `cd plugins && npm ci && npm run build`; CI fails on a stale bundle.
    - A new repair joins the order in `src/index.mjs` and gets a fixture case in
