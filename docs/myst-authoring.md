@@ -26,9 +26,9 @@ This template uses MyST native features wherever possible and falls back to raw 
 
 - **Emphasis**: `*italic*` and `**bold**` instead of `\textit{}` and `\textbf{}`
 - **Math**: Standard MyST math with `$...$` and `` ```math `` blocks
-- **Inline code**: backticks, rendered as `\texttt{...}` (not `\verb`)
+- **Inline code**: backticks, rendered as `\texttt{...}`; with the plugin, code holding a LaTeX special in running text becomes `\verb`, as in the samples ([Plugin repairs](plugin-repairs.md#running-text))
 - **Headings**: Markdown `#`, `##`, `###` for sections
-- **Small caps and sans serif**: `` {sc}`X` `` and `` {sf}`X` `` with the plugin. Without it, both take inline LaTeX, `\textsc{}` and `\textsf{}` (see [Real limitations](#real-limitations-a-qe-feature-myst-cannot-reproduce-in-the-pdf))
+- **Small caps, sans serif, and roman**: `` {sc}`X` ``, `` {sf}`X` ``, and `` {rm}`X` `` with the plugin. Without it, each takes inline LaTeX, `\textsc{}`, `\textsf{}`, and `\textrm{}` (see [Real limitations](#real-limitations-a-qe-feature-myst-cannot-reproduce-in-the-pdf))
 
 #### Citations
 
@@ -374,11 +374,11 @@ Three groups of packages are available in every build:
 
 1. Auto-injected by MyST when its own content needs them (never declared): `pdflscape, longtable, amsmath, amsthm, imakeidx, listings, minted, graphicx, natbib, siunitx, glossaries, xcolor`.
 2. Provided by the class and template: `amssymb, bm, etoolbox, fontenc, textcomp, times, url` (class) and `hyperref` (template). These are declared in `packages:`, so MyST does not re-inject them.
-3. Loaded by the template (packages MyST recognizes but does not auto-inject, so raw-LaTeX content that uses them compiles): `booktabs, array, algpseudocode, subcaption, multirow, tabularx, wrapfig, threeparttable, adjustbox, changepage, mhchem, cancel, supertabular, epigraph, framed, ulem, cleveref`. `algorithm` is **not** among them, by design: see [Algorithms](#algorithms).
+3. Loaded by the template (packages MyST recognizes but does not auto-inject, so raw-LaTeX content that uses them compiles): `booktabs, array, algpseudocode, subcaption, multirow, tabularx, wrapfig, threeparttable, adjustbox, changepage, mhchem, cancel, supertabular, epigraph, framed, ulem, cleveref`. With the plugin, its `used-packages` repair loads only the ones the paper's LaTeX uses, as the upstream samples load none; without it, every one loads. `algorithm` is **not** among them, by design: see [Algorithms](#algorithms).
 
-`booktabs` is in group 3 rather than group 1 because MyST injects it only for tables **it** emits. A document whose tables are raw LaTeX never triggers that, so `\toprule` was an undefined control sequence and the PDF rendered the table with every rule missing, at exit 0. Loading it unconditionally covers both cases. `array` is there for `>{...}` column specifications, which `tabularx` happens to pull in today; the explicit load removes the dependence on that. Note that mystmd's [supported macros](https://mystmd.org/guide/writing-in-latex) do not include the booktabs rules, so they pass through to the PDF and the website ignores them.
+`booktabs` is in group 3 rather than group 1 because MyST injects it only for tables **it** emits. A document with raw-LaTeX tables never triggers that, so `\toprule` was an undefined control sequence and the PDF rendered the table with every rule missing, at exit 0. The template's load covers both cases, and the plugin finds `\toprule` in raw LaTeX as in MyST's own tables. `array` is there for `>{...}` column specifications, which `tabularx` happens to pull in today; the explicit load removes the dependence on that. Note that mystmd's [supported macros](https://mystmd.org/guide/writing-in-latex) do not include the booktabs rules, so they pass through to the PDF and the website ignores them.
 
-Because group 3 is loaded unconditionally, **your TeX installation must contain these packages**. A full TeX Live has them; on a minimal install add them with `tlmgr install <name>`.
+Because a paper may use any package of group 3, **your TeX installation must contain these packages**. A full TeX Live has them; on a minimal install add them with `tlmgr install <name>`. The plugin cannot see into a file that raw LaTeX `\input`s, so a paper with such a file loads the whole group.
 
 Three packages are deliberately **excluded** because they conflict with the class or bibliography: `soul` (its `\caps` clashes with the class), `csquotes` (its `\enquote` clashes with `qe.bst`), and `algorithm2e` (its `\algorithm` clashes with `algorithm`). The template loads `ulem` for strikethrough, so `soul` is not needed.
 

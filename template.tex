@@ -36,9 +36,12 @@
 %% Please put your definitions here:        %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% Packages MyST does not auto-inject and econsocart lacks, loaded so raw-LaTeX content compiles.
-%% booktabs and array load always: MyST injects booktabs only for the tables it writes itself.
+%% Packages MyST does not auto-inject and econsocart lacks, loaded so raw-LaTeX content compiles:
+%% the ones the paper uses when plugins/econsoc.mjs lists them, else all of them.
 %% cleveref loads after hyperref. Full list: docs/myst-authoring.md, "LaTeX packages".
+[# if parts.econsoc_packages #]
+[-parts.econsoc_packages-]
+[# else #]
 \usepackage{booktabs}
 \usepackage{array}
 \usepackage{algpseudocode}
@@ -58,6 +61,7 @@
 %% (what MyST injects for {del}) turns every \emph into an underline.
 \usepackage{framed}
 \usepackage[normalem]{ulem}
+[# endif #]
 
 %% Author-supplied packages via the `extra_packages` export option, e.g.
 %%   extra_packages: tikz,pgfplots
@@ -151,7 +155,9 @@
 
 %% cleveref must load after amsmath, amsthm, hyperref, and the theorem
 %% definitions above, so it is loaded here at the end of the preamble.
+[# if parts.econsoc_cleveref or not parts.econsoc_packages #]
 \usepackage{cleveref}
+[# endif #]
 
 %% MyST joins multi-article exports with \include, whose implicit
 %% \clearpage would start every section on a new page; a journal

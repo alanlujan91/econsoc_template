@@ -13,6 +13,7 @@ import {
   replaceNode,
   roman,
   siteSafe,
+  sourceFile,
   splitTexts,
   texEscape,
   texOnly,
@@ -321,21 +322,30 @@ export const smallcaps = { repair: 'smallcaps', transforms: [smallcapsTransform]
 
 // ---------------------------------------------------------------------------------------------
 // text-roles
-// Markdown has no syntax for sans serif or for the TeX logos, which the samples use (`\textsf`,
-// `\LaTeX`, `\LaTeXe`, `\TeX`); a `{raw:latex}` role is invisible on the site. Two roles:
-// - {sf}`words` is a span styled sans serif for the site, its children bracketed by `\textsf{`
-//   and `}` as smallcaps does, so both outputs render them natively;
-// - {logo}`LaTeX` (or `TeX`, `LaTeX2e`) becomes a texText node: `\LaTeX{}` for LaTeX, the name
+// Markdown has no syntax for sans serif, roman or the TeX logos, which the samples use (`\textsf`,
+// `\textrm`, `\LaTeX`, `\LaTeXe`, `\TeX`); a `{raw:latex}` role is invisible on the site. Roles:
+// - {sf}`words` ({rm}`words`) is a span styled sans serif (serif) for the site, its children
+//   bracketed by `\textsf{` (`\textrm{`) and `}` as smallcaps does, so both outputs render them;
+// - {logo}`LaTeX` (or `TeX`, `LaTeX2e`) becomes a texText node: `\LaTeX` for LaTeX, the name
 //   as plain text on the site. An unknown name stays text, with a warning. The role returns a
 //   span holding the LaTeX, swapped at project stage: MyST parses the `value` of a raw node a
-//   role returns into a paragraph.
+//   role returns into a paragraph. As in the samples, a space after the logo is `\ ` (the
+//   command eats a plain one), a letter after it takes `{}`, and punctuation takes nothing.
 
 // The site's LaTeX2e reads "LaTeX 2" and a Greek epsilon, built from its code point (ASCII file)
 const LOGOS = {
-  TeX: ['\\TeX{}', 'TeX'],
-  LaTeX: ['\\LaTeX{}', 'LaTeX'],
-  LaTeX2e: ['\\LaTeXe{}', `LaTeX 2${String.fromCharCode(0x3b5)}`],
+  TeX: ['\\TeX', 'TeX'],
+  LaTeX: ['\\LaTeX', 'LaTeX'],
+  LaTeX2e: ['\\LaTeXe', `LaTeX 2${String.fromCharCode(0x3b5)}`],
 };
+
+// The logo command, ended for what follows it: `\TeX\` before the text's own space makes `\TeX\ `
+function logoTex(command, next) {
+  const text = next?.type === 'text' ? (next.value ?? '') : undefined;
+  if (text === undefined) return next ? `${command}{}` : command;
+  if (/^\s/.test(text)) return `${command}\\`;
+  return /^[A-Za-z@]/.test(text) ? `${command}{}` : command;
+}
 
 const sfRole = {
   name: 'sf',
@@ -343,6 +353,15 @@ const sfRole = {
   doc: 'Sans serif text, `\\textsf` in LaTeX',
   body: { type: 'myst', required: true },
   run: (data) => [{ type: 'span', style: { fontFamily: 'sans-serif' }, children: [texOnly('\\textsf{'), ...data.body, texOnly('}')] }],
+};
+
+// {rm}`words`, the samples' `\textrm{Roman}`: a serif span on the site, as {sf} is a sans one
+const rmRole = {
+  name: 'rm',
+  alias: ['textrm'],
+  doc: 'Roman (serif) text, `\\textrm` in LaTeX',
+  body: { type: 'myst', required: true },
+  run: (data) => [{ type: 'span', style: { fontFamily: 'serif' }, children: [texOnly('\\textrm{'), ...data.body, texOnly('}')] }],
 };
 
 const logoRole = {
@@ -364,12 +383,63 @@ const logosTransform = {
   stage: 'project',
   plugin: () => (tree) => {
     collect(tree, (node) => node.type === 'span' && node.econsocTex).forEach(({ node, parent }) => {
-      if (parent) replaceNode(parent, node, texText(node.econsocTex, textOf(node)));
+      if (!parent) return;
+      const next = parent.children[parent.children.indexOf(node) + 1];
+      replaceNode(parent, node, texText(logoTex(node.econsocTex, next), textOf(node)));
     });
   },
 };
 
-export const textRoles = { repair: 'text-roles', roles: [sfRole, logoRole], transforms: [logosTransform] };
+export const textRoles = { repair: 'text-roles', roles: [sfRole, rmRole, logoRole], transforms: [logosTransform] };
+
+// ---------------------------------------------------------------------------------------------
+// inline-code
+// myst-to-tex writes inline code as `\texttt{}` with each special escaped, so `\textheight`
+// becomes `\texttt{{\textbackslash}textheight}` where the samples write `\verb|\textheight|`. In
+// running text, where `\verb` is legal, the code becomes a texText node of `\verb`: LaTeX reads it
+// verbatim, Typst gets `#raw`, and the site shows the code as plain text, with no `\iffalse` copy
+// to break the paragraph. `\verb` is illegal inside a command's argument, so code anywhere else (a
+// heading, caption, footnote, link, emphasis, table cell, quote, title or frontmatter part) keeps
+// `\texttt`, as does code that holds a line break or every delimiter. As in the samples, which
+// write `\texttt{Typewriter}` but `\verb|[theorem]|`, code of plain characters stays `\texttt`.
+
+// Parents whose LaTeX is running text or an environment body, never a command's argument
+const VERB_PARENTS = new Set(['root', 'block', 'div', 'paragraph', 'list', 'listItem', 'proof']);
+const VERB_DELIMITERS = '|!+=@/;:"\'~^-';
+const VERB_SPECIALS = /[\\{}#%&_^~$[\]]/;
+const verbParent = (node) => VERB_PARENTS.has(node.type) && !node.data?.part;
+
+function verbTex(code) {
+  const delimiter = [...VERB_DELIMITERS].find((c) => !code.includes(c));
+  if (!delimiter || /[\r\n]/.test(code) || !VERB_SPECIALS.test(code)) return undefined;
+  return `\\verb${delimiter}${code}${delimiter}`;
+}
+
+// Typst string escapes are JSON's but for code points, which Typst writes \u{...}
+const typstRaw = (code) => `#raw(${JSON.stringify(code).replace(/\\u([0-9a-fA-F]{4})/g, '\\u{$1}')})`;
+
+function verbInlineCode(node) {
+  node.children?.forEach((child, i) => {
+    if (child.type === 'inlineCode' && typeof child.value === 'string') {
+      const tex = verbTex(child.value);
+      if (tex) node.children[i] = { ...texText(tex, child.value), typst: typstRaw(child.value) };
+    } else if (verbParent(child)) {
+      verbInlineCode(child);
+    }
+  });
+}
+
+const inlineCodeTransform = {
+  name: 'inline-code',
+  doc: 'Writes inline code in running text as \\verb, as the samples do',
+  stage: 'project',
+  plugin: () => (tree, vfile) => {
+    // A frontmatter part (`<page>#parts.<name>`) may land in a command's argument
+    if (sourceFile(vfile)) verbInlineCode(tree);
+  },
+};
+
+export const inlineCode = { repair: 'inline-code', transforms: [inlineCodeTransform] };
 
 // ---------------------------------------------------------------------------------------------
 // linked-images
@@ -472,7 +542,11 @@ const enumerateDirective = {
   },
 };
 
-// The LaTeX of a labelled list: each item's children without the site's label
+// An optional argument as the samples write it, braced only when a `]` would end it early
+const optionalArg = (tex) => (tex.includes(']') ? `{${tex}}` : tex);
+
+// The LaTeX of a labelled list: each item's children without the site's label. An unlabelled
+// (`none`) list is the samples' `itemize` of `\item[]`.
 function labelledListTex(list, footnotes, file) {
   const labels = list.children.map((item) => item.econsocLabel ?? '');
   const widest = labels.reduce((a, b) => (b.length > a.length ? b : a), '');
@@ -482,9 +556,10 @@ function labelledListTex(list, footnotes, file) {
     );
     const label = texEscape(item.econsocLabel ?? '');
     const target = children[0]?.identifier ? `\\phantomsection\\expandafter\\def\\csname @currentlabel\\endcsname{${label}}` : '';
-    return `\\item[{${label}}]${target} ${renderTex(children, footnotes, file).trim()}`;
+    return `\\item[${optionalArg(label)}]${target} ${renderTex(children, footnotes, file).trim()}`;
   });
-  return `\n\\begin{enumerate}[{${texEscape(widest)}}]\n${items.join('\n')}\n\\end{enumerate}\n\n`;
+  if (!widest) return `\n\\begin{itemize}\n${items.join('\n')}\n\\end{itemize}\n\n`;
+  return `\n\\begin{enumerate}[${optionalArg(texEscape(widest))}]\n${items.join('\n')}\n\\end{enumerate}\n\n`;
 }
 
 const enumerateLabelsTransform = {

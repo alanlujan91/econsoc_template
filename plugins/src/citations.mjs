@@ -71,12 +71,16 @@ const around = (name, c, pre, post, role) =>
 
 const notesOf = (c) => [c.prefix ? texEscape(c.prefix) : '', c.suffix ? texEscape(c.suffix) : ''];
 
+// A narrative year, "(1987)", as the samples write it: `(\citeyear{k})`, which prints what
+// `\citeyearpar{k}` prints, notes included
+const yearInParens = (c, pre, post) => `(${around('citeyear', c, pre, post)})`;
+
 // One citation in a context of the given kind, as the site prints it
 function itemTex(c, kind, role) {
   const [pre, post] = notesOf(c);
   if (c.partial === 'author') return around('citeauthor', c, pre, post, role);
   if (c.partial === 'year') {
-    return kind === 'narrative' ? command('citeyearpar', [c], pre, post) : around('citeyear', c, pre, post);
+    return kind === 'narrative' ? yearInParens(c, pre, post) : around('citeyear', c, pre, post);
   }
   return command(kind === 'narrative' ? 'citet' : 'citealp', [c], pre, post, role);
 }
@@ -91,7 +95,7 @@ function groupTex(group, role) {
     const name = kind === 'narrative' ? 'citet' : 'citep';
     return command(name, cites, notesOf(cites[0])[0], notesOf(cites[n - 1])[1], role);
   }
-  if (n === 1 && cites[0].partial === 'year') return command('citeyearpar', cites, ...notesOf(cites[0]));
+  if (n === 1 && cites[0].partial === 'year') return yearInParens(cites[0], ...notesOf(cites[0]));
   const items = cites.map((c) => itemTex(c, kind, role)).join(', ');
   return kind === 'parenthetical' ? `(${items})` : items;
 }

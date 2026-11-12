@@ -64,6 +64,16 @@ parts:
     description: >-
       Written by plugins/econsoc.mjs, never by the author: the definitions of the theorem
       environments the paper uses, in place of the template's definitions of every kind
+  - id: econsoc_packages
+    required: false
+    description: >-
+      Written by plugins/econsoc.mjs, never by the author: the \usepackage lines of the
+      template's optional packages the paper uses, in place of loading every one
+  - id: econsoc_cleveref
+    required: false
+    description: >-
+      Written by plugins/econsoc.mjs, never by the author: present when the paper uses
+      cleveref, which the template then loads at the end of the preamble
   - id: econsoc_letters_off
     required: false
     description: >-

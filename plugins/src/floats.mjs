@@ -660,25 +660,130 @@ function inheritedConfigs(root) {
   }
 }
 
-const lettersTransform = {
-  name: 'letter-maps',
-  doc: 'Marks a page whose typeset text needs no xelatex letter map, so the template leaves the maps out',
+// What a page's LaTeX is made of: the body as myst-to-tex renders it (into a file of its own, so
+// the render's warnings do not repeat the export's), the text the template copies unrendered
+// (frontmatter and its parts), and every config the page inherits, undefined when one is unknown
+function paperText(tree, file, utils) {
+  return {
+    body: renderTex(tree.children, footnotesOf(utils, tree), { path: file, messages: [] }),
+    unrendered: [JSON.stringify(readFrontmatter(file)), ...pageParts(file).map((part) => part.source ?? '')],
+    configs: inheritedConfigs(projectRoot(file)),
+  };
+}
+
+// A part the template reads (template.yml declares it), set nowhere on the page
+const partBlock = (part, tex) => ({ type: 'block', data: { part }, children: [texOnly(tex)] });
+
+// A project-stage transform of a page (never a part), which appends the part blocks `parts`
+// returns for the page's paperText
+const paperTransform = (name, doc, parts) => ({
+  name,
+  doc,
   stage: 'project',
   plugin: (_opts, utils) => (tree, vfile) => {
     const file = sourceFile(vfile);
-    if (!tree.children || !file) return;
-    // A file of its own, so the render's warnings do not repeat the export's
-    if (hasMapped(renderTex(tree.children, footnotesOf(utils, tree), { path: file, messages: [] }))) return;
-    const bib = citedBibText(tree, file);
-    const configs = inheritedConfigs(projectRoot(file));
-    if (bib === undefined || configs === undefined) return;
-    const unrendered = [JSON.stringify(readFrontmatter(file)), ...pageParts(file).map((part) => part.source ?? ''), ...configs, bib];
-    if (unrendered.some(sourceNeedsMaps)) return;
-    tree.children = [...tree.children, { type: 'block', data: { part: LETTERS_OFF }, children: [texOnly('%% No letter maps')] }];
+    if (tree.children && file) tree.children = [...tree.children, ...parts(paperText(tree, file, utils), tree, file)];
   },
-};
+});
+
+const lettersTransform = paperTransform(
+  'letter-maps',
+  'Marks a page whose typeset text needs no xelatex letter map, so the template leaves the maps out',
+  ({ body, unrendered, configs }, tree, file) => {
+    const bib = citedBibText(tree, file);
+    if (hasMapped(body) || bib === undefined || configs === undefined) return [];
+    return [...unrendered, ...configs, bib].some(sourceNeedsMaps) ? [] : [partBlock(LETTERS_OFF, '%% No letter maps')];
+  },
+);
 
 export const letterMaps = { repair: 'letter-maps', transforms: [lettersTransform] };
+
+// ---------------------------------------------------------------------------------------------
+// used-packages
+// template.tex loads 16 packages econsocart lacks and MyST does not inject (template.yml declares
+// them, so MyST never adds its own copy), plus cleveref, for any raw LaTeX that needs them, where
+// the samples load none. This repair writes the part econsoc_packages
+// with the `\usepackage` lines of those the page's LaTeX uses, found by their commands in the same
+// text letter-maps reads, and econsoc_cleveref when it uses cleveref. The template then loads only
+// those. Without the plugin, without this repair, with a config it cannot read, or with an
+// `\input` whose file it cannot see, the parts are absent and every package loads.
+
+export const PACKAGES_PART = 'econsoc_packages';
+export const CLEVEREF_PART = 'econsoc_cleveref';
+
+// Each package, in template.tex's order and with its options there, and the commands and
+// environments that need it; array's need is read off column specifications (usesArray)
+const envs = (...names) => String.raw`\\begin\{(?:${names.join('|')})\}`;
+const commands = (...names) => String.raw`\\(?:${names.join('|')})\b`;
+const PACKAGES = [
+  { name: 'booktabs', needs: commands('toprule', 'midrule', 'bottomrule', 'cmidrule', 'addlinespace', 'specialrule', 'morecmidrules') },
+  { name: 'array' },
+  { name: 'algpseudocode', needs: envs('algorithmic') },
+  { name: 'subcaption', needs: `${envs('subfigure', 'subtable')}|${commands('subcaption', 'subcaptionbox', 'subref')}` },
+  { name: 'multirow', needs: commands('multirow') },
+  { name: 'tabularx', needs: envs('tabularx') },
+  { name: 'wrapfig', needs: envs('wrapfigure', 'wraptable') },
+  { name: 'threeparttable', needs: envs('threeparttable', 'threeparttablex', 'tablenotes') },
+  { name: 'adjustbox', needs: `${envs('adjustbox')}|${commands('adjustbox', 'adjustimage')}` },
+  { name: 'changepage', needs: `${envs('adjustwidth\\*?')}|${commands('checkoddpage', 'changepage')}` },
+  { name: 'mhchem', needs: commands('ce', 'pu') },
+  { name: 'cancel', needs: commands('cancel', 'bcancel', 'xcancel', 'cancelto') },
+  { name: 'supertabular', needs: `${envs('supertabular\\*?', 'mpsupertabular')}|${commands('tablehead', 'tabletail', 'tablefirsthead')}` },
+  { name: 'epigraph', needs: `${envs('epigraphs')}|${commands('epigraph', 'epigraphhead')}` },
+  { name: 'framed', needs: envs('framed', 'shaded\\*?', 'snugshade\\*?', 'leftbar', 'oframed', 'titled-frame') },
+  { name: 'ulem', options: 'normalem', needs: commands('uline', 'uuline', 'uwave', 'sout', 'xout', 'dashuline', 'dotuline') },
+].map((p) => ({ ...p, needs: p.needs && new RegExp(p.needs) }));
+const CLEVEREF = /\\(?:[cC]ref|[cC]refrange|labelcref|[nN]amecref|lcnamecref|[cC]pageref|[cC]refname|crefformat)\b/;
+// A file LaTeX reads that this repair cannot see into
+const UNSEEN = /\\(?:input|include|InputIfFileExists|import|subimport)\b/;
+
+// Whether a column specification needs array's `>{}`, `<{}`, `!{}`, `m{}`, `b{}` or `w{}`: read off
+// every tabular-like environment and \multicolumn, a braced group at a time
+const TABULARS = /\\begin\{(?:tabular\*?|array|longtable|tabularx|tabulary|xltabular|supertabular\*?|mpsupertabular)\}|\\multicolumn\{[^{}]*\}|\\newcolumntype/g;
+function braced(text, start) {
+  let i = start;
+  while (/\s/.test(text[i] ?? '')) i++;
+  if (text[i] === '[') i = text.indexOf(']', i) + 1;
+  while (/\s/.test(text[i] ?? '')) i++;
+  if (text[i] !== '{') return undefined;
+  for (let depth = 0, j = i; j < text.length; j++) {
+    depth += text[j] === '{' ? 1 : text[j] === '}' ? -1 : 0;
+    if (depth === 0) return { group: text.slice(i + 1, j), end: j + 1 };
+  }
+  return undefined;
+}
+function usesArray(text) {
+  for (const m of text.matchAll(TABULARS)) {
+    if (m[0] === '\\newcolumntype') return true;
+    let at = m.index + m[0].length;
+    // tabular*, tabularx and the like take a width before the specification
+    if (/\\begin\{(?:tabular\*|tabularx|tabulary|xltabular)\}/.test(m[0])) at = braced(text, at)?.end ?? at;
+    const spec = braced(text, at)?.group;
+    if (spec === undefined || /[><!mbwW]\s*\{/.test(spec)) return true;
+  }
+  return false;
+}
+
+function packagesUsed(texts) {
+  const used = PACKAGES.filter((p) => texts.some((t) => (p.needs ? p.needs.test(t) : usesArray(t))));
+  const lines = used.map((p) => `\\usepackage${p.options ? `[${p.options}]` : ''}{${p.name}}`);
+  return { lines, cleveref: texts.some((t) => CLEVEREF.test(t)) };
+}
+
+const packagesTransform = paperTransform(
+  'used-packages',
+  'Lists the packages the page uses, so the template loads only those',
+  ({ body, unrendered, configs }) => {
+    if (configs === undefined) return [];
+    const texts = [body, ...unrendered, ...configs];
+    if (texts.some((t) => UNSEEN.test(t))) return [];
+    const { lines, cleveref } = packagesUsed(texts);
+    const listed = partBlock(PACKAGES_PART, lines.length ? lines.join('\n') : '%% No packages beyond econsocart');
+    return cleveref ? [listed, partBlock(CLEVEREF_PART, '\\usepackage{cleveref}')] : [listed];
+  },
+);
+
+export const usedPackages = { repair: 'used-packages', transforms: [packagesTransform] };
 
 // ---------------------------------------------------------------------------------------------
 // part-headings

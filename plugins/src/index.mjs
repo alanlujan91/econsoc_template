@@ -23,6 +23,7 @@ import {
   subfigures,
   tableColumns,
   tableNotes,
+  usedPackages,
 } from './floats.mjs';
 import {
   algorithmLines,
@@ -48,6 +49,7 @@ import {
   abbreviationSpaces,
   enumerateLabels,
   footnotes,
+  inlineCode,
   inlineRaws,
   linkedImages,
   listStart,
@@ -85,6 +87,7 @@ const REPAIRS = [
   textSymbols,
   abbreviationSpaces,
   textRoles,
+  inlineCode,
   // smallcaps before footnotes, which renders footnote bodies
   smallcaps,
   footnotes,
@@ -117,11 +120,13 @@ const REPAIRS = [
   listStart,
   // block-breaks follows every block repair, so it sees the raw blocks they wrote; macros reads
   // their raw LaTeX; inline-raws reaches all of it (ignored-images, a document-stage check,
-  // could sit anywhere); letter-maps, last, reads the text every other repair wrote
+  // could sit anywhere); letter-maps and used-packages, last, read the text every other repair
+  // wrote
   blockBreaks,
   macros,
   inlineRaws,
   letterMaps,
+  usedPackages,
 ];
 
 const disabled = new Set((process.env.ECONSOC_DISABLE ?? '').split(',').filter(Boolean));

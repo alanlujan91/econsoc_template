@@ -43,6 +43,8 @@ read -ra REPAIRS < <(cd plugins && node --input-type=module -e \
 CODED_ONLY=(part-citations boxed-floats ignored-images inline-raws block-breaks quotations raw-legends)
 # Repairs whose assertions read the site; their rejection runs build it too
 SITE_REPAIRS=(inline-raws raw-legends)
+# Repairs whose rejection runs build the PDFs too, which must print what the full run prints
+PARITY_REPAIRS=(theorem-definitions used-packages)
 
 # repair|file|text a .tex must contain, outside `%` comments and the `\iffalse` copies the site
 # needs (inline-raws); a text opening with `~` is an extended regular expression
@@ -101,7 +103,7 @@ TEX_EXPECT=(
     'label-case|article.tex|MIXED: Section~\ref{sec-Mixed}, (\ref{eq-Mixed}), Sec~\ref{sec-Mixed}, Section~\ref{sec-Mixed}, Section~\ref{sec-model}, Remark~\ref{rem-case}, Remark~\ref{rem-case}, Remark~\ref{rem-case}.'
     'missing-refs|article.tex|MISSING: the class member \textbf{??}no-such-label describes, and see~\textbf{??}no-such-other too.'
     'citation-forms|article.tex|CITES: the body cites \cite{enelow1984} and (\citealp{nash1950}, \citealp[see][p. 3]{debreu1959}).'
-    'citation-forms|article.tex|CITEFORMS: see \citet[p. 3]{nash1950}, \citep[e.g.][pg. 22]{nash1950}, \citet[ch. 2]{debreu1959}, \citeyearpar{nash1950}, \citeyearpar{debreu1959}, \citeauthor{nash1950}, \citealp{debreu1959}, (\citealp[see][p. 3]{nash1950}, \citealp[also][ch. 2]{debreu1959}), \citep[cf.][p. 5]{nash1950, debreu1959}.'
+    'citation-forms|article.tex|CITEFORMS: see \citet[p. 3]{nash1950}, \citep[e.g.][pg. 22]{nash1950}, \citet[ch. 2]{debreu1959}, (\citeyear{nash1950}), (\citeyear{debreu1959}), \citeauthor{nash1950}, \citealp{debreu1959}, (\citealp[see][p. 3]{nash1950}, \citealp[also][ch. 2]{debreu1959}), \citep[cf.][p. 5]{nash1950, debreu1959}.'
     'raw-refs|article.tex|RAWREF: as in Section~\ref{sec-model} and Figure~\ref{fig-main} and (\ref{eq-main}) and Section~S1.'
     'smallcaps|article.tex|SMALLCAPS: the \textsc{Small Caps} role and the \texttt{Ctrl} key.'
     'footnotes|article.tex|FOOTNOTES: a note\footnote{Twice-cited note DISTINCTTWICE.\label{fn:twice}} cited twice\footref{fn:twice}, then'
@@ -171,10 +173,12 @@ TEX_EXPECT=(
     'text-symbols|article.tex|PARENMINUS: a math number after a parenthesis ($-$3.48 and $-$3.05).'
     'text-symbols|article.tex|SYMBOLS: $-$0.30 and $-$0.45, not 10-20 or COVID-19, x $-$ y; a $\rightarrow$ b $\Rightarrow$ c $\leftarrow$ d $\leftrightarrow$ e $\Leftrightarrow$ f $\Leftarrow$ g; wait\ldots{} then.'
     'abbreviation-spaces|article.tex|ABBREVS: e.g.\ this, i.e.\ that, cf.\ Smith, vs.\ them, etc.\ and Smith et al.\ (2000), etc. The end.'
-    'text-roles|article.tex|ROLES: the \textsf{Sans Serif} role and the \LaTeX{}, \TeX{} and \LaTeXe{} logos.'
-    'enumerate-labels|article.tex|\begin{enumerate}[{(ii)}]'
-    'enumerate-labels|article.tex|\item[{(i)}] ENUM-FIRST condition.'
-    'enumerate-labels|article.tex|\item[{(ii)}]\phantomsection\expandafter\def\csname @currentlabel\endcsname{(ii)} \label{enum-second}ENUM-SECOND condition.'
+    'text-roles|article.tex|ROLES: the \textsf{Sans Serif} role and the \LaTeX, \TeX\ and \LaTeXe\ logos, in the \TeX{}book.'
+    'enumerate-labels|article.tex|\begin{enumerate}[(ii)]'
+    'enumerate-labels|article.tex|\item[(i)] ENUM-FIRST condition.'
+    'enumerate-labels|article.tex|\item[] ENUM-BARE first,'
+    'inline-code|article.tex|\item[] ENUM-BARE first, \verb|\barecode|.'
+    'enumerate-labels|article.tex|\item[(ii)]\phantomsection\expandafter\def\csname @currentlabel\endcsname{(ii)} \label{enum-second}ENUM-SECOND condition.'
     'enumerate-labels|article.tex|ENUMREF: Condition~\ref{enum-second}.'
     # the page's kinds as the samples define them, with Definition, Example and Remark upright
     # and a kind used only unnumbered under its own name
@@ -182,6 +186,21 @@ TEX_EXPECT=(
     'theorem-definitions|article.tex|\newtheorem*{corollary}{Corollary}'
     'theorem-definitions|article.tex|\begin{corollary}\phantomsection\label{cor-unnum}NONUMBER-ONLY:'
     'theorem-definitions|algo.tex|~^\\theoremstyle\{plain\}$'
+    # inline code as \verb in running text, a list and a proof body, in a delimiter it lacks;
+    # \texttt inside every command argument, where \verb would stop LaTeX
+    'inline-code|nonum.tex|INLINECODE: \verb|\textheight| and \verb!a|b[0]!, \texttt{plain} stays, then'
+    'inline-code|nonum.tex|\item INLINELIST: \verb|\listcode| in a list.'
+    'inline-code|nonum.tex|PROOFCODE: \verb|\proofcode| in a proof.'
+    'inline-code|nonum.tex|\section{Code in a heading \texttt{{\textbackslash}headcode}}'
+    'inline-code|nonum.tex|\textit{emphasis \texttt{{\textbackslash}emphcode}}'
+    'inline-code|nonum.tex|{a link \texttt{{\textbackslash}linkcode}}'
+    'inline-code|nonum.tex|\footnote{FOOTCODE: \texttt{{\textbackslash}footcode} in a footnote.}'
+    'inline-code|nonum.tex|CELLCODE: \texttt{{\textbackslash}cellcode}'
+    'inline-code|nonum.tex|[Title \texttt{{\textbackslash}titlecode}]'
+    # only the packages a page uses (its tables, algorithms and raw LaTeX), cleveref included
+    'used-packages|article.tex|\usepackage{multirow}'
+    'used-packages|algo.tex|\usepackage{algpseudocode}'
+    'used-packages|nonum.tex|\usepackage{cleveref}'
     # and kept on a page with one, in its body (UNICODE) or in its title alone
     'letter-maps|article.tex|\es@vi{1EA0}'
     'letter-maps|nonum.tex|\es@vi{1EA0}'
@@ -209,6 +228,11 @@ TEX_FORBID=(
     'proofs|article.tex|\newtheorem{theorem}{Theorem}[section]'
     'theorem-definitions|article.tex|\newtheorem{conjecture}'
     'theorem-definitions|algo.tex|\newtheorem{claim}'
+    # packages a page never uses: booktabs and array without their rules or column types
+    'used-packages|algo.tex|\usepackage{booktabs}'
+    'used-packages|nonum.tex|\usepackage{array}'
+    'used-packages|supplement.tex|\usepackage{mhchem}'
+    'used-packages|supplement.tex|\usepackage{cleveref}'
     # the letter maps, on a page whose characters T1 prints as they are
     'letter-maps|algo.tex|\es@vi{1EA0}'
     'proofs|article.tex|[Proof of ]'
@@ -304,6 +328,7 @@ PDF_EXPECT=(
     "supplement.pdf|Supplement to ${LQUOTE}Main article${RQUOTE}"
     'article.pdf|UNICODE: Ko'
     'nonum.pdf|Unnumbered note, Ko'
+    'nonum.pdf|INLINECODE: \textheight and a|b[0], plain stays, then'
     "article.pdf|Stra${SZLIG}e"
     'nonum.pdf|NONUM: Second part, Section ??n-second.'
     'nonum.pdf|ECOND PART 1 A sub part'
@@ -490,8 +515,8 @@ for repair in "${REPAIRS[@]}"; do
     done
     flags=(--tex)
     if [[ " ${SITE_REPAIRS[*]} " == *" $repair "* ]]; then flags+=(--site); fi
-    # The template's own theorem definitions must print what theorem-definitions prints (below)
-    if $PDF && [ "$repair" = theorem-definitions ]; then flags+=(--pdf); fi
+    # Without these repairs the template's own definitions and packages must print the same (below)
+    if $PDF && [[ " ${PARITY_REPAIRS[*]} " == *" $repair "* ]]; then flags+=(--pdf); fi
     while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do wait -n; done
     (ECONSOC_DISABLE=$repair build "$blind" "${flags[@]}") &
 done
@@ -532,16 +557,20 @@ if $PDF; then
 
     # A paper without the plugin gets template.tex's definitions of every kind, renumbered and
     # restyled; theorem-definitions writes the page's kinds directly. Both must print the same.
-    fallback=$BLIND/without-theorem-definitions/_build/out
-    grep -qF '\es@upright{definition}\es@upright{example}\es@upright{remark}' "$fallback/article.tex" ||
-        die "template.tex's fallback definitions are missing from $fallback/article.tex"
-    for file in "${!pdf_text[@]}"; do
-        [ -s "$fallback/$file" ] || die "the fallback build wrote no $file"
-        other=$(pdftotext -layout "$fallback/$file" - | tr -s '[:space:]' ' ')
-        [ "$other" = "${pdf_text[$file]}" ] || {
-            diff <(tr '.' '\n' <<<"${pdf_text[$file]}") <(tr '.' '\n' <<<"$other") | head -10
-            die "$file prints differently with template.tex's theorem definitions (above)"
-        }
+    # And the packages the template loads without used-packages must change nothing printed.
+    grep -qF '\es@upright{definition}\es@upright{example}\es@upright{remark}' \
+        "$BLIND/without-theorem-definitions/_build/out/article.tex" ||
+        die "template.tex's fallback definitions are missing from the theorem-definitions rejection run"
+    for repair in "${PARITY_REPAIRS[@]}"; do
+        fallback=$BLIND/without-$repair/_build/out
+        for file in "${!pdf_text[@]}"; do
+            [ -s "$fallback/$file" ] || die "the build without $repair wrote no $file"
+            other=$(pdftotext -layout "$fallback/$file" - | tr -s '[:space:]' ' ')
+            [ "$other" = "${pdf_text[$file]}" ] || {
+                diff <(tr '.' '\n' <<<"${pdf_text[$file]}") <(tr '.' '\n' <<<"$other") | head -10
+                die "$file prints differently without $repair (above)"
+            }
+        done
     done
-    echo "OK: template.tex's theorem definitions print the same PDF text as theorem-definitions"
+    echo "OK: template.tex's own theorem definitions and full package list print the same PDF text"
 fi

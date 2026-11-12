@@ -504,7 +504,7 @@ QUOTEATTR: an attributed one of two paragraphs.
 >
 > -- An Author
 
-ROLES: the {sf}`Sans Serif` role and the {logo}`LaTeX`, {logo}`TeX` and {logo}`LaTeX2e` logos.
+ROLES: the {sf}`Sans Serif` role and the {logo}`LaTeX`, {logo}`TeX` and {logo}`LaTeX2e` logos, in the {logo}`TeX`book.
 
 :::{enumerate} (i)
 1. ENUM-FIRST condition.
@@ -513,6 +513,11 @@ ROLES: the {sf}`Sans Serif` role and the {logo}`LaTeX`, {logo}`TeX` and {logo}`L
 :::
 
 ENUMREF: [Condition %s](#enum-second).
+
+:::{enumerate} none
+- ENUM-BARE first, `\barecode`.
+- ENUM-BARE second.
+:::
 
 UNICODE: K&#337;szegi Stra&szlig;e &euro; &#7865; in the text.
 
