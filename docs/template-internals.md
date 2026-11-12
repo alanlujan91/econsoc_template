@@ -25,6 +25,14 @@ section numbered "Corollary 1" with cross-references resolving to that string.
 emits it with a `\label` and no `\caption`, and a float takes its number from the
 caption, so under the float package the block renders with no label at all.
 
+MyST writes its `\newtheorem` block only when it renders a proof itself
+(`state.data.hasProofs` in myst-to-tex). When `plugins/econsoc.mjs` writes every
+proof of a page as raw LaTeX, nothing defines `theorem`, and the build stops at
+"Environment theorem undefined" with exit 0. `template.tex` therefore defines each
+of MyST's kinds under `\@ifundefined`, after the detaching, with the numbering the
+detaching leaves: global counters, `lemma` on the theorem counter. When MyST's block
+is present the guards define nothing.
+
 ## Vendoring is verbatim, by design
 
 `scripts/sync-vendored.sh --check` asserts the root class and `.bst` copies are
@@ -98,9 +106,10 @@ routed through these macros inherits that requirement.
 
 `default('')` alone was not enough. A page inherits `short_title` from the project
 rather than receiving it, so `doc.short_title` is undefined there and the head
-rendered `\runtitle{}`: a blank running head on every odd page. No check looked at
-the running head at all, so a real paper carried the blank for months. The running head therefore falls back to `doc.title`. A
-running head that is too long is visibly wrong and gets fixed; an empty one is not.
+rendered `\runtitle{}`: a blank running head on every odd page. No check looked at the
+running head, so a real paper carried the blank for months. The running head therefore falls back
+to `doc.title`. A running head that is too long is visibly wrong and gets fixed; an
+empty one is not.
 
 `.github/workflows/ci.yml` job `check-escaping` is the regression test, and it has
 been checked against the unescaped template: all six assertions fail on it. The same
@@ -115,9 +124,10 @@ along with their `\label`, so cross-references to them render `??`. The build sa
 [issue 3030](https://github.com/jupyter-book/mystmd/issues/3030) and
 [PR 3031](https://github.com/jupyter-book/mystmd/pull/3031), open since 2026-08-19.
 
-`plugins/proof-kinds.mjs` restores all four kinds in a paper that lists it
-([plugins/README.md](../plugins/README.md)), and `scripts/check-plugins.sh` tests it.
-The sample does not list the plugins, so `sample/exports/` is still built without it:
+`plugins/econsoc.mjs` restores all four kinds in a paper that lists it
+([plugins/README.md](../plugins/README.md#proofs-and-exercises)), and
+`scripts/check-plugins.sh` tests it. The sample does not list the plugin, so
+`sample/exports/` is still built without it:
 the article PDFs omit the `assumption` and `algorithm` blocks `sample/article.md`
 declares, and that section says so in its own prose. `scripts/build-samples.sh`
 asserts both kinds stay absent and fails once one reaches the `.tex`.
@@ -125,13 +135,18 @@ asserts both kinds stay absent and fails once one reaches the `.tex`.
 The `\newtheorem{assumption}` and `\newtheorem{algorithm}` definitions in
 `template.tex` take effect as soon as the writer emits the environments. Once #3031
 is released, rebuild `sample/exports/`, drop the note from `sample/article.md`, and
-delete the plugin.
+delete the plugin's `proof-kinds` repair.
+
+The plugin also writes environments released MyST never emits, each defined in
+`template.tex`: `claim` (numbered) and `fact` (starred) for `{prf:claim}` and
+`{prf:fact}`, and `exercise`, `exercise*`, and `solution` for MyST's `{exercise}`
+and `{solution}`. `solution` takes its heading as its argument, so the plugin
+passes MyST's own title, "Solution to Exercise~\ref{...}".
 
 ## Packages
 
-`template.yml` `packages:` declares what the template or class already loads, which
-tells MyST not to re-inject it. Declaring a package that nothing actually loads
-suppresses the injection and breaks the build.
+The `template.yml` `packages:` rule is in
+[CONTRIBUTING, Template Files](../.github/CONTRIBUTING.md#template-files).
 
 ## Preprint running head
 
@@ -163,22 +178,18 @@ address satisfies it, and is inert when unused.
 
 The class prints its "JEL CLASSIFICATION" label whatever the block contains, so an
 empty block renders as a stray label with dangling punctuation. Omit the block
-instead. It is also suppressed under `journal: ecta`, where upstream carries no JEL
-block; a comment trace survives into the `.tex` so the codes read as withheld
-rather than lost.
+instead. Its suppression under `journal: ecta` is described in the
+[README](../README.md#econometrica-house-style).
 
 ## Appendix
 
-There is no `parts.appendix` branch, and a document that declares `parts: appendix:`
-loses its appendix entirely and silently. MyST excludes frontmatter parts from the
-rendered document, so bibliography harvesting never sees them: a reference cited
-only in the appendix reaches the `.tex` while its entry never reaches the `.bib`,
-leaving an undefined citation. Open the appendix in the document body with raw
-LaTeX instead, per the README.
-
-`scripts/build-samples.sh` catches the missing entry by comparing, as sets, the keys
-cited in each emitted `.tex` with the entries of the `main.bib` in the same export
-directory.
+The `parts.appendix` branch sets the part inside `\begin{appendix}` after the body.
+It works only with `plugins/econsoc.mjs`: released mystmd leaves the part's
+citations out of the `.bib` and demotes its headings one level, losing the appendix
+letters. Cause, the part form, and the body form that works without the plugin:
+[README, Appendices](../README.md#appendices). The sample uses the body form, and
+`scripts/build-samples.sh` catches a citation lost from it (see "Cited keys are
+compared against the emitted `.bib` as sets" below).
 
 ## Bibliography styles
 
@@ -189,7 +200,7 @@ Upstream's `qe_supp_template.tex` and `te_supp_template.tex` name `ecta-fullname
 which is stale. That file only ever existed in the Econometrica repository, which
 deleted it on 2026-03-06 (commit 959c321) and added `econsoc.bst` in the same commit.
 
-## What build-samples.sh guards, and why each check exists
+## What build-samples.sh guards
 
 Each check answers a defect that once reached a built PDF at exit 0. The rationale
 is kept here because a comment block in the script is capped at three lines.
@@ -220,7 +231,7 @@ previous PDFs would pass every assertion. For both reasons the script deletes
 `sample/exports/` before the build and requires as many PDFs, and as many `.tex`
 files, as the sources declare exports. CI job `build-pdf` runs this script.
 
-**The log regex matches the condition, never the decoration.** MyST runs xelatex
+**The log regex matches the error text, whatever prefix the log gives it.** MyST runs xelatex
 through latexmk with `-file-line-error`, which rewrites `! message` into
 `file:line: message`, so a pattern anchored on `^! ` matches nothing. Class- and
 package-branded errors read `Class econsocart Error:` rather than `LaTeX Error:`.
@@ -230,11 +241,11 @@ An earlier `^! ` version passed a build whose log held
 **Cited keys are compared against the emitted `.bib` as sets.** MyST harvests the
 bibliography from the *rendered* document, so a key reachable only from unrendered
 content appears in the `.tex` and never in the `.bib`. BibTeX leaves it undefined,
-natbib logs a warning rather than an error, and the PDF ships a visible `?`.
+natbib logs a warning rather than an error, and the PDF prints a visible `?`.
 Counting entries cannot catch this, because the other citations still resolve and
 keep any threshold satisfied.
 
-**`|| true` on the leading greps is load-bearing.** `grep` exits 1 when it matches
+**`|| true` on the leading greps is required.** `grep` exits 1 when it matches
 nothing, which is legitimate here (a `.tex` with no citations, an empty `.bib`).
 Under `set -euo pipefail` that exit propagates through the pipe and kills the
 script at the assignment, with no message and no further exports checked.
@@ -249,18 +260,18 @@ without error says nothing about content, because `myst-to-tex` drops the proof 
 it cannot map and still exits 0. Every emitted `.tex` must hold the kinds the samples
 declare and released `myst-to-tex` maps (`theorem`, `proposition`, `lemma`,
 `definition`, `remark`, `axiom`, `example`), and must lack `assumption` and
-`algorithm` (see "Dropped proof kinds" above). When either appears, mystmd#3031 has
-been released: rebuild `sample/exports/` and drop the note in `sample/article.md`.
+`algorithm` until mystmd#3031 is released (see "Dropped proof kinds" above).
 
-**No `\caption*` reaches the `.tex`.** A `---` attribution line in a blockquote makes
-MyST wrap the quote in a figure with `\caption*`. econsocart ignores the star and
-typesets "FIGURE 0." into the paper, with exit 0 and a clean log. Writing the
-attribution with `--` keeps it inside the quote.
+**No `\caption*` reaches the `.tex`.** A blank `>` line before a blockquote's
+dash-prefixed attribution makes MyST wrap the quote in a figure with `\caption*`.
+econsocart ignores the star and typesets "FIGURE 0." into the paper, with exit 0
+and a clean log. The dash count is irrelevant
+([README, Blockquote attributions](../README.md#blockquote-attributions)).
 
 **An unresolved reference prints a literal `??`.** No LaTeX event occurs, so no
 log gate can see it. A numbered `[Sec %s](#label)` link does this in every
 single-article export ([mystmd#3035](https://github.com/jupyter-book/mystmd/pull/3035)),
 and a `\ref` to a dropped `prf:algorithm` block does it too, so the artifact check
-is the only one that covers both. `plugins/xref.mjs` repairs the first cause and
-`plugins/proof-kinds.mjs` the second, in a paper that lists them
+is the only one that covers both. `plugins/econsoc.mjs` repairs both, in a paper that
+lists it
 ([plugins/README.md](../plugins/README.md)).

@@ -7,7 +7,7 @@ Thank you for your interest in contributing to the Econometric Society Journals 
 ### Prerequisites
 
 - Python with `uv` package manager
-- Node.js with `npm` (for MyST)
+- Node.js with `npm` (for MyST, and for rebuilding the plugin bundle)
 - LaTeX distribution (TeX Live or similar)
 - Git with submodules support
 
@@ -28,12 +28,9 @@ git submodule update --init --recursive
 
 ### Install Development Tools
 
-```bash
-# Install MyST
-npm install -g mystmd
-# or
-uv tool install mystmd
+Install MyST as in the [README Quick Start](../README.md#1-install-myst), then:
 
+```bash
 # Install pre-commit
 uv tool install pre-commit
 
@@ -45,9 +42,7 @@ pre-commit install
 
 ### Pre-commit Hooks
 
-Pre-commit hooks run automatically before each commit to catch issues early.
-
-**What gets checked**:
+Pre-commit hooks run automatically before each commit. They check:
 
 - Template structure validation (`jtex check`, which also requires every file
   in `template.yml` and the thumbnail to exist)
@@ -68,7 +63,7 @@ pre-commit run jtex-autofix --hook-stage manual
 ### Continuous Integration
 
 GitHub Actions run on every push and pull request, and weekly, because CI
-installs the latest `mystmd` and the plugins in `plugins/` depend on its
+installs the latest `mystmd` and the plugin `plugins/econsoc.mjs` depends on its
 internals.
 
 | Job                       | Purpose                                                          |
@@ -78,7 +73,7 @@ internals.
 | **build-pdf**             | Compiles every sample export with TeX via `scripts/build-samples.sh`, gates the logs, diffs the PDF text against the committed artifacts, and runs `scripts/check-plugins.sh --pdf` |
 | **check-ascii**           | Runs the pre-commit `check-ascii` hook                           |
 | **test-options**          | Renders each boolean option, `extra_packages`/`open_access`, and every journal, preprint, and supplement leg to LaTeX, asserting the class options and `\bibliographystyle` |
-| **check-upstream-drift**  | Runs `scripts/sync-vendored.sh --check`; fails if a vendored root file diverges from the pinned `original/*` submodules. Then runs `scripts/selftest-sync-vendored.sh`, which mutates a disposable copy nine ways and requires the guard to reject each one, so the job cannot pass merely because the guard stopped working |
+| **check-upstream-drift**  | Fails if `scripts/sync-vendored.sh --check` finds a vendored root file diverging from the pinned `original/*` submodules. Then runs its self-test `scripts/selftest-sync-vendored.sh` (see [Vendoring is verbatim](../docs/template-internals.md#vendoring-is-verbatim-by-design)) |
 
 View results: [Actions tab](../../actions)
 
@@ -94,6 +89,15 @@ Build sample PDF manually:
 
 ```bash
 myst build sample/article.md --pdf
+```
+
+To regenerate the committed `sample/exports/`, follow
+[Rebuilding the sample exports](../docs/template-internals.md#rebuilding-the-sample-exports).
+
+Test the plugin against its fixture, compiling the PDFs too:
+
+```bash
+scripts/check-plugins.sh --pdf
 ```
 
 Run specific validation:
@@ -119,10 +123,10 @@ This template tracks all three official Econometric Society LaTeX templates as g
 ### Which file comes from where
 
 `econsocart.cls` and `econsocart.cfg` are **one shared file** used by all three
-journals, but the three upstreams re-release it independently. There is
-therefore no fixed correct source: the vendored copy comes from whichever
-submodule ships the newest `\ProvidesClass` / `\ProvidesFile` date. The `.bst`
-files are genuinely journal-specific and always come from their own upstream.
+journals, but the three upstreams re-release it independently. The vendored copy
+therefore comes from whichever submodule carries the newest `\ProvidesClass` /
+`\ProvidesFile` date. The `.bst` files are journal-specific and always come from
+their own upstream.
 
 `scripts/sync-vendored.sh` is the single place that rule lives; both the sync
 workflow and the `check-upstream-drift` CI job call it, so neither has to
@@ -135,27 +139,22 @@ scripts/sync-vendored.sh --check   # verify them (what CI runs)
 
 ### Automatic Updates
 
-A GitHub Action checks for upstream changes every Monday at 9 AM UTC:
+`.github/workflows/sync-upstream-template.yml` checks for upstream changes every Monday at 9 AM UTC:
 
 1. Fetches each submodule and advances any whose default branch moved
 2. Re-vendors the root files via `scripts/sync-vendored.sh`
-3. Creates one pull request covering every submodule that moved
+3. Creates one pull request covering every submodule that moved, for review before merging
 4. Labels the PR as `dependencies` and `automated`
 
 **Manual trigger**: Navigate to [Actions -> Sync Upstream](../../actions/workflows/sync-upstream-template.yml) and click "Run workflow"
 
-**Why polling and not a push trigger**: the upstream repositories belong to
-`vtex-soft` and send this repository no events, so GitHub cannot fire a workflow
-here when they are pushed to. The schedule is the only way to notice upstream
-movement. The complementary guard is `check-upstream-drift`, which runs on every
-push and pull request and fails if a submodule pointer moved without the
-vendored files being re-synced.
-
-**Review required**: All updates go through pull requests before merging to ensure no breaking changes.
+The upstream repositories belong to `vtex-soft` and send this repository no
+events, so GitHub cannot fire a workflow here when they are pushed to; the
+schedule is the only way to notice upstream movement. `check-upstream-drift`
+complements it on every push and pull request, failing if a submodule pointer
+moved without the vendored files being re-synced.
 
 ### Manual Sync Process
-
-If you need to manually sync with upstream:
 
 ```bash
 # Update every submodule to its upstream default branch
@@ -179,7 +178,7 @@ git commit -m "chore: sync with upstream Econometric Society templates"
 When modifying template files:
 
 1. **`template.tex`**: Main template with Jinja2 syntax
-   - Test with both `draft` and `final` options
+   - Test with `draft` both on and off
    - Ensure all placeholders work correctly
    - **Never write a jtex token in a comment.** jtex substitutes `[-...-]`
      (expressions) and `[# ... #]` (blocks) everywhere, including inside `%`
@@ -191,22 +190,29 @@ When modifying template files:
    - Use `jtex check --fix` to auto-add missing packages
    - **Packages rule**: the `packages:` list must contain only packages the
      template actually loads (via `econsocart.cls` or an explicit `\usepackage`
-     in `template.tex`). MyST auto-injects the packages its own content needs
-     (booktabs, longtable, graphicx, amsmath, amsthm, natbib, listings, siunitx,
-     framed, xcolor, glossaries, ...) at `[-IMPORTS-]`. Declaring one of those
-     without also loading it *suppresses* that injection and breaks the build.
-     The template additionally pre-loads the set of packages MyST recognizes but
-     does not auto-inject (algorithm, subcaption, multirow, mhchem, cleveref,
-     ...), each loaded in `template.tex` AND declared in `packages:`, so raw-LaTeX
-     content using them compiles. When adding one, verify it loads under
-     `econsocart` *with a bibliography present* (that is how `csquotes` was found
-     to clash via `\enquote`); `soul` and `algorithm2e` are excluded for the same
-     reason.
+     in `template.tex`). MyST auto-injects the packages its own content needs at
+     `[-IMPORTS-]`; declaring one of those without also loading it *suppresses*
+     that injection and breaks the build. The groups of packages, and the ones
+     excluded, are listed in the [README](../README.md#latex-packages). A package
+     added to the pre-loaded group is loaded in `template.tex` AND declared in
+     `packages:`. Verify it loads under `econsocart` *with a bibliography
+     present*: that is how `csquotes` was found to clash via `\enquote`.
 3. **Class files**: Only update from upstream, don't modify directly
-   - `econsocart.cls`, `econsocart.cfg`, `qe.bst`
-   - The root copies are kept identical to the pinned `original/*` submodules;
-     the `check-upstream-drift` CI job enforces this. Re-vendor with
-     `scripts/sync-vendored.sh` rather than copying by hand.
+   - `econsocart.cls`, `econsocart.cfg`, `econsoc.bst`, `qe.bst`, `te.bst`
+   - Re-vendor with `scripts/sync-vendored.sh` rather than copying by hand;
+     `check-upstream-drift` enforces that the root copies match the pinned
+     submodules.
+4. **`plugins/`**: the econsoc plugin
+   - Edit `plugins/src/` (one module per repair, shared helpers in `util.mjs`),
+     never the generated `econsoc.mjs`. Rebuild it with
+     `cd plugins && npm ci && npm run build`; CI fails on a stale bundle.
+   - A new repair joins the order in `src/index.mjs` and gets a fixture case in
+     `tests/plugins/` whose assertions in `scripts/check-plugins.sh` fail with the
+     repair switched off. The check enforces that rule for every repair.
+   - MyST loads a package only for content it renders itself. A package that LaTeX
+     written whole by the plugin may need is loaded in `template.tex` and declared in
+     `packages:` instead, as `framed` and `ulem` are. Repair details:
+     [plugins/README.md](../plugins/README.md).
 
 ### Sample Document
 
@@ -214,7 +220,7 @@ The sample document demonstrates all template features:
 
 - **`sample/article.md`**: Main sample document
 - **`sample/supplement.md`**: Supplementary-material example (`supplement: true`)
-- **`sample/appendix.md`**: Appendix example (spliced into the article body with `include`, between raw LaTeX blocks opening and closing the `{appendix}` environment; not a `parts.appendix` entry, which would drop appendix-only citations)
+- **`sample/appendix.md`**: Appendix example, spliced into the article body as described in [README, Appendices](../README.md#appendices)
 - **`sample/references.bib`**: Bibliography example
 
 **Important**: Keep `article.md` in sync with the original `original/qe/qe_sample.tex` as much as possible. The equivalent upstream samples for the other two journals are `original/ecta/ecta_sample.tex` and `original/te/te_sample.tex`.
@@ -223,33 +229,18 @@ The sample document demonstrates all template features:
 
 - **`README.md`**: User-facing template documentation
 - **`.github/CONTRIBUTING.md`**: This file (contributor documentation)
+- **`docs/template-internals.md`**: Maintainer notes on the silent traps `template.tex` works around
+- **`plugins/README.md`**: The plugin's repairs, one row each, with their limitations
 - **Workflow files**: Document changes inline with comments
 
 ## Workflow Files
 
-### `.pre-commit-config.yaml`
-
-Defines pre-commit hooks. Each hook includes:
-- Description comment
-- Purpose and usage
-- Any special configuration
-
-### `.github/workflows/ci.yml`
-
-Main CI workflow. Tests:
-- Template validation (`jtex check`)
-- PDF compilation of every sample export, with log gates and a text diff
-- The plugins, against their compiled fixture
-- LaTeX rendering of each option, journal, preprint, and supplement leg
-- ASCII compliance
-- Vendored-file drift against the pinned submodule
-
-### `.github/workflows/sync-upstream-template.yml`
-
-Automated upstream synchronization:
-- Scheduled: Weekly (Monday 9 AM UTC)
-- Manual: On-demand via Actions tab
-- Creates PR when updates found
+`.pre-commit-config.yaml` defines the pre-commit hooks, each with a comment on its
+purpose and any special configuration. `.github/workflows/ci.yml` runs the jobs in
+[Continuous Integration](#continuous-integration);
+`.github/workflows/sync-upstream-template.yml` runs the
+[Automatic Updates](#automatic-updates), on schedule or on demand from the Actions
+tab.
 
 ## Troubleshooting
 
@@ -261,8 +252,7 @@ Automated upstream synchronization:
 - Ensure bibliography file exists and is valid
 
 **Template validation fails**:
-- Run `jtex check` for detailed errors
-- Use `jtex check --fix` to auto-fix package issues
+- Run `jtex check` for detailed errors, and `jtex check --fix` for package issues
 - Check that all files in `template.yml` exist
 
 **Pre-commit hooks fail**:
@@ -273,7 +263,7 @@ Automated upstream synchronization:
 **PDF has incorrect output**:
 - Check for curly apostrophes (') instead of backslashes (\)
 - Verify raw LaTeX blocks use proper syntax
-- Test locally with `myst build sample/article.md --pdf`
+- Build the sample locally (see [Local Testing](#local-testing))
 
 ## Pull Request Guidelines
 
