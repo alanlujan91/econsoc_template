@@ -438,6 +438,8 @@ IGNOREDIMG: ![ignored](_build/img/ignored_figure.pdf)
 
 AUTHOREDBIB: {cite:t}`wittman1990` in its book.
 
+BIBCAPS: {cite:t}`hardnet2024` leaves two acronyms unbraced.
+
 CITEROLES: {cite:ps}`aumannhartperry1997`, {cite:ts}`aumannhartperry1997`, {cite:ct}`vonneumann1944`, {cite:cts}`aumannhartperry1997`, {cite:authors}`aumannhartperry1997`, {cite:cauthor}`vonneumann1944`, {cite:authorpars}`aumannhartperry1997`, {cite:alps}`aumannhartperry1997,vonneumann1944`, {cite:alp}`nash1950,debreu1959`, {cite:label}`nash1950`.
 
 # Text
@@ -467,6 +469,8 @@ p = q
 ```
 
 SYMBOLS: -0.30 and &minus;0.45, not 10-20 or COVID-19, x &minus; y; a &rarr; b &rArr; c &larr; d &harr; e &hArr; f &lArr; g; wait... then.
+
+PARENMINUS: a math number after a parenthesis ($-3.48$ and $-3.05$).
 
 ABBREVS: e.g. this, i.e. that, cf. Smith, vs. them, etc. and Smith et al. (2000), etc. The end.
 

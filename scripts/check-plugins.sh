@@ -72,7 +72,7 @@ TEX_EXPECT=(
     'proof-kinds|article.tex|\footnote{The footnote is referenced from inside the assumption.}'
     'proof-kinds|article.tex|KINDS: Assumption~\ref{asm-bounded}, Algorithm~\ref{alg-iterate}, Criterion~\ref{crit-stop}, Property~\ref{prop-monotone}.'
     'doi-links|article.tex|DOILINKS: the \href{https://doi.org/10.5281/zenodo.1234567}{replication files} and the badge \href{https://doi.org/10.5281/zenodo.1234567}{'
-    'linked-images|article.tex|~badge \\href\{https://doi\.org/10\.5281/zenodo\.1234567\}\{\\includegraphics\[width=0\.7\\linewidth\]\{files/[^}]*\}\}\.'
+    'linked-images|article.tex|~badge \\href\{https://doi\.org/10\.5281/zenodo\.1234567\}\{\\includegraphics\[height=1em\]\{files/[^}]*\}\}\.'
     'stacked-labels|article.tex|STACKED: Section~\ref{stk-a} and Section~\ref{stk-a}, Figure~\ref{fig-above} and Figure~\ref{fig-above}.'
     'stacked-labels|supplement.tex|REMOTE STACKED: Section~2.2.'
     'section-numbering|nonum.tex|\setcounter{secnumdepth}{0}\section{First part}'
@@ -168,6 +168,7 @@ TEX_EXPECT=(
     'math-labels|article.tex|g &= h \label{eq-row2}'
     'math-labels|article.tex|p = q \label{eq-gather}'
     'math-labels|article.tex|MATHLABELS: (\ref{eq-align}), (\ref{eq-row1}), (\ref{eq-row2}) and (\ref{eq-gather}).'
+    'text-symbols|article.tex|PARENMINUS: a math number after a parenthesis ($-$3.48 and $-$3.05).'
     'text-symbols|article.tex|SYMBOLS: $-$0.30 and $-$0.45, not 10-20 or COVID-19, x $-$ y; a $\rightarrow$ b $\Rightarrow$ c $\leftarrow$ d $\leftrightarrow$ e $\Leftrightarrow$ f $\Leftarrow$ g; wait\ldots{} then.'
     'abbreviation-spaces|article.tex|ABBREVS: e.g.\ this, i.e.\ that, cf.\ Smith, vs.\ them, etc.\ and Smith et al.\ (2000), etc. The end.'
     'text-roles|article.tex|ROLES: the \textsf{Sans Serif} role and the \LaTeX{}, \TeX{} and \LaTeXe{} logos.'
@@ -204,7 +205,7 @@ TEX_FORBID=(
 )
 
 # part-citations: the article cites exactly these, aumann1987 and peck1994 from its parts alone
-CITED="aumann1987 aumannhartperry1997 debreu1959 enelow1984 nash1950 peck1994 vonneumann1944 wittman1990"
+CITED="aumann1987 aumannhartperry1997 debreu1959 enelow1984 hardnet2024 nash1950 peck1994 vonneumann1944 wittman1990"
 
 # Parent node types whose children the site renders inline, where a raw node with children
 # (a <div>) breaks the line: inline-raws must leave none
@@ -380,6 +381,11 @@ failures() {
             F=$file perl -0777 -ne 'print "$ENV{F}: text runs on after \\end{$1}\n" while
                 /\\end\{((?:$ENV{ENVS})\*?)\}\n?(?=[A-Za-z(])/g' <<<"${body[$file]}"
         done
+    fi
+    if mine authored-bib; then
+        # The title braces GARCH and leaves DSGE and HardNet bare, which sentence case lowercases
+        grep -qF 'the title of hardnet2024 has DSGE, HardNet outside braces' "$dir/_build/check.log" ||
+            echo "the build did not warn of the unbraced capitals in hardnet2024's title"
     fi
     if mine citation-forms; then
         grep -qF 'the note of citation debreu1959 holds "@nash1950"' "$dir/_build/check.log" ||

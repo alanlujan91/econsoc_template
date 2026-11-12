@@ -116,7 +116,7 @@ export function splitTexts(node, split) {
       splitTexts(child, split);
       continue;
     }
-    const start = i === 0 || /\s$/.test(textOf(children[i - 1]));
+    const start = i === 0 || WORD_START.test(textOf(children[i - 1]));
     const next = i + 1 < children.length ? textOf(children[i + 1]).charAt(0) : '';
     const nodes = split(child.value ?? '', { start, next });
     if (nodes) children.splice(i, 1, ...nodes);
@@ -153,8 +153,9 @@ const ARROWS = Object.fromEntries(
   ].map(([code, tex]) => [String.fromCharCode(code), tex]),
 );
 const SYMBOL = new RegExp(`${MINUS_SIGN}|-(?=\\.?\\d)|[${Object.keys(ARROWS).join('')}]|\\.\\.\\.`, 'g');
-// What an ASCII hyphen must follow to open a number: a word start
-const NUMBER_START = /[\s([{/;:=,]$/;
+// What text must end with for the next character to open a word, within one text node or across
+// two (`($-3.48$`, where MyST makes the number its own text node): a hyphen there opens a number
+const WORD_START = /[\s([{/;:=,]$/;
 
 // The cuts of `value` for each symbol myst-to-tex writes wrongly; `start` says whether the
 // value opens a word (an ASCII hyphen there opens a number)
@@ -162,7 +163,7 @@ export function texSymbols(value, start = true) {
   const cuts = [];
   for (const m of value.matchAll(SYMBOL)) {
     const s = m[0];
-    if (s === '-' && !(m.index === 0 ? start : NUMBER_START.test(value.slice(0, m.index)))) continue;
+    if (s === '-' && !(m.index === 0 ? start : WORD_START.test(value.slice(0, m.index)))) continue;
     const tex = s === '...' ? '\\ldots{}' : ARROWS[s] ? `$${ARROWS[s]}$` : '$-$';
     cuts.push({ index: m.index, length: s.length, tex });
   }

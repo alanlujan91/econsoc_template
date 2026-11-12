@@ -381,9 +381,12 @@ export const textRoles = { repair: 'text-roles', roles: [sfRole, logoRole], tran
 // Each link holding an image becomes a raw node of the link's LaTeX with every image written
 // inline. Rendered when myst-to-tex reads it, so the image paths are the exported ones; the site
 // keeps the link. An inline repair, after doi-links, which gives a DOI badge its link back.
+// An image with no width of its own is set at text height: myst-to-tex's 0.7\linewidth default
+// made a badge a figure-sized box in the line (106pt overfull in the fixture).
 
 // The node with each image swapped for its LaTeX, trimmed of the break
 const inlineImages = (node, file) => {
+  if (node.type === 'image' && !node.width) return texOnly(`\\includegraphics[height=1em]{${node.url}}`);
   if (node.type === 'image') return texOnly(renderTex([node], [], file).trim());
   return node.children ? { ...node, children: node.children.map((child) => inlineImages(child, file)) } : node;
 };

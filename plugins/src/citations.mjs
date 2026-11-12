@@ -492,6 +492,37 @@ function selectEntries(keys, entries) {
   return [...chosen.values()].map((entry) => entry.text);
 }
 
+// Title words BibTeX's sentence case (`change.case$ "t"`) lowercases although they hold two
+// capitals (DSGE, HardNet): only braces protect them, so an author learns before the PDF says "dsge".
+// A hyphen splits words: "Absent-Minded" is Title Case that sentence case should lower.
+function unbracedCaps(entry) {
+  const open = entry.match(/(?:^|[,\s])title\s*=\s*([{"])/i);
+  if (!open) return [];
+  const words = [];
+  let depth = 0;
+  let math = false;
+  let word = '';
+  const flush = () => {
+    if ((word.match(/[A-Z]/g) ?? []).length >= 2) words.push(word);
+    word = '';
+  };
+  for (let i = open.index + open[0].length; i < entry.length; i++) {
+    const c = entry[i];
+    if (depth === 0 && (c === '}' || (open[1] === '"' && c === '"'))) break;
+    if (c === '{' || c === '}') {
+      flush();
+      depth += c === '{' ? 1 : -1;
+    } else if (depth === 0 && c === '$') {
+      flush();
+      math = !math;
+    } else if (depth === 0 && !math && /[A-Za-z0-9]/.test(c) && entry[i - 1] !== '\\' && !(word === '' && /\\[A-Za-z]*$/.test(entry.slice(0, i)))) {
+      word += c;
+    } else flush();
+  }
+  flush();
+  return words;
+}
+
 const bibTransform = {
   name: 'authored-bib',
   doc: 'Writes the authored .bib entries of the cited keys into the LaTeX, for BibTeX to read in place of main.bib',
@@ -514,7 +545,13 @@ const bibTransform = {
       return;
     }
     if (unknown(raw).length) vfile.message(`econsoc: no authored .bib holds ${unknown(raw).join(', ')}, cited in raw LaTeX`);
-    const bib = [...defs, ...selectEntries([...parsed, ...raw], entries)];
+    const selected = selectEntries([...parsed, ...raw], entries);
+    for (const entry of selected) {
+      const caps = unbracedCaps(entry);
+      const key = entry.match(/^@\s*\w+\s*[{(]\s*([^,\s]+)/)?.[1];
+      if (caps.length) vfile.message(`econsoc: the title of ${key} has ${caps.join(', ')} outside braces, which the .bst lowercases: write {${caps[0]}}`);
+    }
+    const bib = [...defs, ...selected];
     const tex = [`\\begin{filecontents*}[overwrite]{${BIB_FILE}.bib}`, ...bib, '\\end{filecontents*}', `\\gdef\\econsocbibliography{${BIB_FILE}}`, ''];
     // Not enumerable, so the site JSON leaves the entries out while myst-to-tex still reads them
     const node = { type: 'raw', lang: 'latex', data: { [BIB_MARKER]: true } };
