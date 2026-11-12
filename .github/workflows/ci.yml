@@ -37,7 +37,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22
 
       - name: Install jtex
         run: npm install -g jtex
@@ -77,7 +77,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22
 
       - name: Install MyST
         run: npm install -g mystmd
@@ -103,7 +103,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22
 
       # texlive-xetex is required (myst drives xelatex and xdvipdfmx). The rest follow the .sty
       # files a compile loads: latex-extra for adjustbox/cleveref/epigraph/supertabular/
@@ -270,6 +270,11 @@ jobs:
       - name: Check user-editable files for unicode
         run: pipx run pre-commit run check-ascii --all-files
 
+      # core.filemode=false (common on WSL) commits a new script without its exec bit, and
+      # the job that runs it fails with "Permission denied"; this names the file up front.
+      - name: Check scripts with a shebang are executable in git
+        run: pipx run pre-commit run check-shebang-scripts-are-executable --all-files
+
   test-options:
     # Renders one document per case to LaTeX (no TeX toolchain) and asserts each option's own
     # token in the output: a render that merely succeeds passes with the option's conditional
@@ -281,7 +286,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22
 
       - name: Install MyST
         run: npm install -g mystmd

@@ -222,7 +222,7 @@ Quantitative Economics and Theoretical Economics ones:
 | JEL codes | none (suppressed by the template, below) | up to 3, in alphabetical order |
 | Keyword guidance | 3-8 keywords | 3-8 keywords and up to 3 JEL codes |
 
-Under `journal: ecta` the template suppresses the JEL block even when the document
+The template suppresses the JEL block for `journal: ecta` even when the document
 supplies `tags`, because both `ecta_sample.tex` and `ecta_template.tex` lack one
 while the qe and te equivalents each carry one. Keep your `tags:` in frontmatter:
 they still emit for the qe and te exports of the same source, so one document
@@ -306,7 +306,7 @@ Use `acknowledgement` (singular) in frontmatter, not `acknowledgements`.
 
 ## The econsoc plugin
 
-Released mystmd (1.12.0) writes several constructs to LaTeX wrongly, each at exit 0;
+Released mystmd (1.13.0) writes several constructs to LaTeX wrongly, each at exit 0;
 the limitations below list them. `plugins/econsoc.mjs` repairs them. A paper lists it
 in its own `myst.yml`, because MyST loads plugins from the project and never from an
 export's `template:`:
@@ -327,7 +327,7 @@ released mystmd writes.
 ## MyST Implementation Details
 
 > **The upstream limitations below were measured on mystmd 1.10.1**; those the plugin
-> repairs were measured again on 1.12.0. Several describe bugs with open pull
+> repairs were measured again on 1.13.0. Several describe bugs with open pull
 > requests: [#2352](https://github.com/jupyter-book/mystmd/pull/2352) (headings in
 > frontmatter parts), [#3031](https://github.com/jupyter-book/mystmd/pull/3031)
 > (dropped proof kinds), [#3033](https://github.com/jupyter-book/mystmd/pull/3033)
@@ -599,7 +599,7 @@ upstream showing a truly small-capped example where this sample shows roman.
 | `claim` / `fact` results | see [Proof directives](#proof-directives) below | the plugin's `claim-fact` repair. Without it, `{prf:proposition}` / `{prf:observation}`, or a `{raw} latex` `\begin{claim}` block (the environments are defined) |
 | Small caps / sans serif in text | no Markdown syntax. `\textsc{X}` written bare in Markdown is **escaped to literal text** (`{\textbackslash}textsc\{X\}`), and the `` {sc}`X` `` role **silently drops its content** in the PDF, logging `Unhandled LaTeX conversion for node of "smallcaps"` while still exiting 0, though both look like they work | `` {sc}`X` `` with the plugin's `smallcaps` repair, and `` {sf}`X` `` with its `text-roles` repair ([plugins/README.md](plugins/README.md#running-text)). Without the plugin, `` {raw:latex}`\textsf{X}` `` and `` {raw:latex}`\textsc{X}` ``; `` {sc}`X` `` then renders correctly only in HTML |
 | LaTeX logo macros in prose | Markdown has no `\LaTeXe` / `\TeX`, so writing them as text renders "LaTeX2e" where the hand-written sample renders the proper logo | `` {logo}`LaTeX2e` `` (also `LaTeX`, `TeX`) with the plugin's `text-roles` repair; without it, `` {raw:latex}`\LaTeXe` `` |
-| Footnotes inside a figure or table caption, or a table cell | **silently dropped from the PDF** while rendering normally on the website, so the note exists online and is missing from the manuscript. A footnote referenced twice prints its text twice. Body footnotes are otherwise unaffected | the plugin's `footnotes` repair ([plugins/README.md](plugins/README.md#running-text)). Without it, put the note in the body text, or fold it into the caption itself |
+| Footnotes inside a figure or table caption, or a table cell | **silently dropped from the PDF** while rendering normally on the website. A footnote referenced twice prints its text twice. Body footnotes are otherwise unaffected | the plugin's `footnotes` repair ([plugins/README.md](plugins/README.md#running-text)). Without it, put the note in the body text, or fold it into the caption itself |
 | `{prf:criterion}`, `{prf:property}` | body text **dropped from the PDF**, rendered normally in HTML; both log "Unhandled LaTeX proof environment" | the plugin's `proof-kinds` repair. Without it, use one of the 13 supported kinds, or a `{raw} latex` block |
 | `{prf:claim}`, `{prf:fact}`, `{prf:exercise}`, `{prf:solution}` | **not MyST proof kinds at all.** HTML shows an "Unknown Directive" error box with the raw source below it; the PDF gets nothing, and **no log line is emitted**, so watching the build log will not save you | `{prf:claim}` and `{prf:fact}` with the plugin's `claim-fact` repair. For exercises, MyST's own `{exercise}` and `{solution}`, which reach the PDF with the plugin's `exercises` repair. Without the plugin, use `{prf:proposition}`, `{prf:example}`, or `{prf:remark}` |
 | Other LaTeX exports | more constructs written wrongly at exit 0, from a link inside a raw LaTeX block printed verbatim to the paragraph after a theorem running on unindented | the plugin; [plugins/README.md](plugins/README.md#repairs) lists every repair |
@@ -640,9 +640,9 @@ Use `algpseudocode` syntax (`\State`, `\For`, `\EndFor`), not the older all-caps
 
 #### Writing LaTeX inside Markdown
 
-Five different things get called "raw LaTeX" and they behave differently. Both
-columns are measured: the PDF from the `.tex` export, the HTML from a real
-`myst build --html`, reading the visible markup rather than the AST.
+The table measures where each construct called "raw LaTeX" arrives: the PDF from the
+`.tex` export, the HTML from a real `myst build --html`, reading the visible markup
+rather than the AST.
 
 | What you write | Reaches PDF | Reaches HTML |
 | --- | --- | --- |
@@ -791,7 +791,7 @@ and this documentation are original work by Alan Lujan, licensed **CC-BY-4.0**.
 ### Trademarks and endorsement
 
 "Econometrica", "Quantitative Economics", "Theoretical Economics", and The
-Econometric Society's names and marks belong to their respective owners. They
+Econometric Society's names and marks belong to their owners. They
 are used here only to identify the target journal of a submission. See the
 unofficial notice at the top of this README.
 

@@ -1,7 +1,7 @@
 # MyST plugin for the Econometric Society template
 
 `econsoc.mjs` holds every repair this template has for a LaTeX-export bug in released
-mystmd (1.12.0). Each bug passes silently: the build exits 0 and the PDF is wrong.
+mystmd (1.13.0). Each bug passes silently: the build exits 0 and the PDF is wrong.
 Four have an upstream fix in an unmerged pull request
 ([#2352](https://github.com/jupyter-book/mystmd/pull/2352),
 [#3031](https://github.com/jupyter-book/mystmd/pull/3031),
@@ -45,7 +45,7 @@ changes, apart from the site fixes the tables mark.
   run of text (a minus sign, an abbreviation's space, a role) skips it as a childless
   `raw` node, whose `value` the site shows as plain text.
 - Repairs that write a whole block (proofs, quotes, floats, footnote bodies) render it
-  with the bundle's own myst-to-tex, the 1.0.48 that mystmd 1.12.0 runs, and the plugin
+  with the bundle's own myst-to-tex, the 1.0.48 that mystmd 1.13.0 runs, and the plugin
   warns at load when the running mystmd differs from the release the bundle was built
   against. A block is rendered when myst-to-tex reads it, after the export has renamed
   the images, so an image inside it gets its exported path.

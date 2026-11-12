@@ -6,9 +6,9 @@
   "scripts": {
     "build": "node build.mjs"
   },
-  "comment": "Exact versions, not ranges: they are bundled into econsoc.mjs. myst-to-tex 1.0.48 and unified 10.1.2 are the versions mystmd 1.12.0 (myst-cli 1.12.0) ships; econsoc.mystmd is that release, which econsoc.mjs warns of when a build runs another.",
+  "comment": "Exact versions, not ranges: they are bundled into econsoc.mjs. myst-to-tex 1.0.48 and unified 10.1.2 are the versions mystmd 1.13.0 (myst-cli 1.13.0) ships; econsoc.mystmd is that release, which econsoc.mjs warns of when a build runs another.",
   "econsoc": {
-    "mystmd": "1.12.0"
+    "mystmd": "1.13.0"
   },
   "dependencies": {
     "js-yaml": "4.3.2",

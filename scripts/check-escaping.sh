@@ -18,6 +18,12 @@ command -v myst >/dev/null 2>&1 || myst() { "$repo/.venv/bin/myst" "$@"; }
 # every empty-macro pattern, and a presence assertion must not be satisfiable by a comment.
 body() { grep -v '^[[:space:]]*%' "$1"; }
 
+# $1 = fixture dir. Renders it, keeps myst's output in render.log, prints the .tex path.
+render_fixture() {
+    (cd "$1" && myst build --tex >"$1/render.log" 2>&1) || true
+    echo "$1/out/t.tex"
+}
+
 # $1 = template dir, $2 = output dir
 build_specials() {
     local tpl="$1" out="$2"
@@ -51,8 +57,7 @@ tags: ["D&14"]
 
 Body.
 MD
-    (cd "$out" && myst build --tex >/dev/null 2>&1) || true
-    echo "$out/out/t.tex"
+    render_fixture "$out"
 }
 
 # A page with every optional field omitted, and no short_title of its own.
@@ -79,8 +84,7 @@ project:
         - file: main.md
 YML
     printf -- '# Page Heading\n\nNo page-level short_title here.\n' > "$out/main.md"
-    (cd "$out" && myst build --tex >"$out/render.log" 2>&1) || true
-    echo "$out/out/t.tex"
+    render_fixture "$out"
 }
 
 PRESENCE=(
@@ -100,9 +104,14 @@ EMPTY=( '\\ead\[[^]]*\]{}' '\\orgdiv{}' '\\kwd{}' '\\snm{}' )
 run_checks() {
     local tpl="$1" quiet="${2:-}" tex minimal rc=0 pat
     say() { [ -n "$quiet" ] || echo "  $*"; }
+    # $1 = fixture name, $2 = the .tex it should have produced; shows why myst made none.
+    no_tex() {
+        say "$1 fixture produced no .tex; myst said:"
+        [ -n "$quiet" ] || tail -n 15 "$(dirname "$(dirname "$2")")/render.log" | sed 's/^/    /'
+    }
 
     tex=$(build_specials "$tpl" "$work/specials.$RANDOM")
-    [ -s "$tex" ] || { say "no .tex produced"; return 1; }
+    [ -s "$tex" ] || { no_tex specials "$tex"; return 1; }
 
     for pat in "${PRESENCE[@]}"; do
         body "$tex" | grep -q "$pat" || { say "unescaped: $pat"; rc=1; }
@@ -116,7 +125,7 @@ run_checks() {
     if render_aborted "$(dirname "$(dirname "$minimal")")/render.log"; then
         say "render aborted on inherited frontmatter"; rc=1
     fi
-    [ -s "$minimal" ] || { say "minimal fixture produced no .tex"; return 1; }
+    [ -s "$minimal" ] || { no_tex minimal "$minimal"; return 1; }
     for pat in "${EMPTY[@]}"; do
         if body "$minimal" | grep -q "$pat"; then say "empty macro emitted: $pat"; rc=1; fi
     done
