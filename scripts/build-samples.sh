@@ -12,9 +12,9 @@ cd "$(dirname "$0")/.."
 
 SOURCES=(article.md supplement.md)
 
-# Proof kinds the samples declare that released myst-to-tex maps, and those it drops (mystmd#3031)
-MAPPED_KINDS=(theorem proposition lemma definition remark axiom example)
-DROPPED_KINDS=(assumption algorithm)
+# Proof kinds the samples declare. Only the plugin's claim-fact repair emits claim and fact;
+# a missing one means the plugin did not load.
+KINDS=(theorem claim lemma definition remark axiom example fact)
 
 command -v pdftotext >/dev/null 2>&1 ||
     die "pdftotext not found (install poppler-utils); the bibliography check cannot run without it"
@@ -90,13 +90,10 @@ for tex in "${texs[@]}"; do
         grep -o 'Introduction should be [A-Za-z~\\{}]*' "$tex" | head -1 >&2 || true
     fi
 
-    for env in "${MAPPED_KINDS[@]}"; do
-        grep -q "\\\\begin{$env}" "$tex" || fail "\\begin{$env} missing from $tex"
-    done
-    for env in "${DROPPED_KINDS[@]}"; do
-        if grep -q "\\\\begin{$env}" "$tex"; then
-            fail "$env now reaches $tex: mystmd#3031 has landed: rebuild sample/exports and drop the note in sample/article.md"
-        fi
+    # An unnumbered (`:nonumber:`) block is its kind's starred environment, as the example is.
+    for env in "${KINDS[@]}"; do
+        grep -q "\\\\begin{$env\\*\\?}" "$tex" ||
+            fail "\\begin{$env} missing from $tex (is plugins/econsoc.mjs listed in myst.yml?)"
     done
 
     if grep -n '\\caption\*' "$tex" >&2; then

@@ -204,7 +204,13 @@ NONUMBER: a list that opens at 3.
 NONUMBER-THM: a theorem without a number.
 :::
 
-LISTREFS: [](#item-third), [](#item-fourth-b), [the claim](#clm-unnum), [](#thm-unnum).
+:::{prf:corollary}
+:label: cor-unnum
+:nonumber:
+NONUMBER-ONLY: the page's only corollary, unnumbered.
+:::
+
+LISTREFS: [](#item-third), [](#item-fourth-b), [the claim](#clm-unnum), [](#thm-unnum), [the corollary](#cor-unnum).
 
 ```{list-table}
 * - Short cell one, padded out to

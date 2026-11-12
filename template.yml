@@ -59,6 +59,16 @@ parts:
   - id: appendix
     required: false
     description: Appendix, set after the body under the class's appendix lettering (needs plugins/econsoc.mjs)
+  - id: econsoc_localdefs
+    required: false
+    description: >-
+      Written by plugins/econsoc.mjs, never by the author: the definitions of the theorem
+      environments the paper uses, in place of the template's definitions of every kind
+  - id: econsoc_letters_off
+    required: false
+    description: >-
+      Written by plugins/econsoc.mjs, never by the author: present when the paper holds no
+      character xelatex's T1 font would drop or misprint, so the template leaves out its letter maps
 options:
   - type: choice
     id: journal
@@ -112,7 +122,7 @@ options:
     description: >-
       Print {prf:axiom} blocks as "Assumption N" on the assumption counter. Use it
       when assumptions are written as axioms because myst-to-tex drops
-      {prf:assumption} (README "Theorem-like Environments").
+      {prf:assumption} (docs/myst-authoring.md, "Theorem-like Environments").
     default: false
   - type: boolean
     id: observation_as_algorithm

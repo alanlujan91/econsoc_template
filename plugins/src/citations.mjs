@@ -18,6 +18,7 @@ import {
   projectRoot,
   rawLatex,
   readFrontmatter,
+  sourceFile,
   texEscape,
   textOf,
   walk,
@@ -277,9 +278,9 @@ const injectTransform = {
   doc: 'Appends the citations of the page frontmatter parts, hidden, so the page bibliography holds them',
   stage: 'document',
   plugin: () => (tree, vfile) => {
-    const file = vfile.path;
-    // An inline part has the synthetic path `<page>#parts.<name>`; only a page carries parts
-    if (!file || file.includes('#') || !/\.md$/i.test(file) || !fs.existsSync(file)) return;
+    // Only a page carries parts
+    const file = sourceFile(vfile);
+    if (!file || !/\.md$/i.test(file)) return;
     tree.children = (tree.children ?? []).filter((node) => !isPartMarker(node));
     const keys = [...new Set(pageParts(file).flatMap((part) => citationKeys(part.source)))];
     if (keys.length) tree.children.push(hiddenBlock(PART_MARKER, keys.map(citeNode)));
@@ -478,6 +479,16 @@ function pageKeys(tree, file) {
   return { parsed: [...parsed], raw: [...raw].filter((k) => !parsed.has(k)) };
 }
 
+// The authored .bib text the page's references are set from, or undefined when a key has no
+// authored entry (a DOI citation, a typo), whose text then cannot be read
+export function citedBibText(tree, file) {
+  const { parsed, raw } = pageKeys(tree, file);
+  const { defs, entries } = readBibs(projectRoot(file));
+  const keys = [...parsed, ...raw];
+  if (keys.some((k) => !entries.has(k.toLowerCase()))) return undefined;
+  return [...defs, ...selectEntries(keys, entries)].join('\n');
+}
+
 // The entries of `keys`, then the crossref parents BibTeX wants after their children
 function selectEntries(keys, entries) {
   const chosen = new Map();
@@ -528,8 +539,8 @@ const bibTransform = {
   doc: 'Writes the authored .bib entries of the cited keys into the LaTeX, for BibTeX to read in place of main.bib',
   stage: 'project',
   plugin: () => (tree, vfile) => {
-    const file = vfile.path;
-    if (!tree.children || !file || file.includes('#') || !fs.existsSync(file)) return;
+    const file = sourceFile(vfile);
+    if (!tree.children || !file) return;
     tree.children = tree.children.filter((node) => !node.data?.[BIB_MARKER]);
     const root = projectRoot(file);
     const { parsed, raw } = pageKeys(tree, file);

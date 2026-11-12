@@ -263,6 +263,13 @@ export function renderTex(nodes, footnotes, file) {
   return out.result.value;
 }
 
+// The file a transform's tree came from, undefined for an inline part (its synthetic path is
+// `<page>#parts.<name>`) or a path not on disk
+export function sourceFile(vfile) {
+  const file = vfile.path;
+  return file && !file.includes('#') && fs.existsSync(file) ? file : undefined;
+}
+
 // Frontmatter. A plugin is handed no frontmatter object, so the repairs that need it read the
 // page and myst.yml from disk, with js-yaml (myst-to-tex's own dependency).
 const FRONTMATTER = /^---[ \t]*\r?\n([\s\S]*?)\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/;

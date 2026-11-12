@@ -6,13 +6,9 @@
 set -euo pipefail
 
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
-
 # shellcheck source=scripts/lib-econsoc.sh
 . "$repo/scripts/lib-econsoc.sh"
-
-command -v myst >/dev/null 2>&1 || myst() { "$repo/.venv/bin/myst" "$@"; }
+probe_init
 
 # Strip comment lines first: upstream's example `% [add1]{\fnms{}~\snm{}\ead[label=e?]{}}` matches
 # every empty-macro pattern, and a presence assertion must not be satisfiable by a comment.

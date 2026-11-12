@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Check plugins/econsoc.mjs against the fixture project tests/plugins/. Every case exits 0 without
 # the plugin, so only the emitted files show it: per repair, a rejection run rebuilds the fixture
-# with that repair off and requires its own assertions to fail. See plugins/README.md.
+# with that repair off and requires its own assertions to fail. See docs/plugin-repairs.md, "Checks".
 #
 #   scripts/check-plugins.sh [--pdf]    --pdf also compiles the documents (TeX, pdftotext)
 
@@ -59,18 +59,18 @@ TEX_EXPECT=(
     'xref|supplement.tex|REMOTE BACK: Section~2, Section~2.1, (1), Appendix~A, Appendix~B.1, the model section, Figure~1 of the main text, Assumption~1.'
     'xref|supplement.tex|SUPP LOCAL: Section~\ref{s-top} and Sec~\ref{s-detail}.'
     'xref|supplement.tex|PART LOCAL: Appendix~\ref{app-first} and Appendix~\ref{app-first}.'
-    # xref fixed the references inside a proof block before proof-kinds rendered it
+    # xref fixed the references inside a proof block before the proofs repair rendered it
     'xref|article.tex|as in \citet{debreu1959}; see Supplemental Material~S1.1 and Sec~\ref{sec-sub}.'
     # the four kinds, with their bodies, labels and references, and an image's exported path
-    'proof-kinds|article.tex|\begin{assumption}[Bounded utility]\label{asm-bounded}Utility is bounded'
-    'proof-kinds|article.tex|\label{eq-bound}'
-    'proof-kinds|article.tex|\includegraphics[width=0.1\linewidth]{files/'
-    'proof-kinds|article.tex|\begin{algorithm}\label{alg-iterate}Iterate on (\ref{eq-bound})'
-    'proof-kinds|article.tex|\textbf{raw inside the algorithm}'
-    'proof-kinds|article.tex|\begin{criterion}[Stopping rule]\label{crit-stop}Stop when the residual of Algorithm~\ref{alg-iterate}'
-    'proof-kinds|article.tex|\begin{property}\label{prop-monotone}The policy is monotone under Assumption~\ref{asm-bounded}'
-    'proof-kinds|article.tex|\footnote{The footnote is referenced from inside the assumption.}'
-    'proof-kinds|article.tex|KINDS: Assumption~\ref{asm-bounded}, Algorithm~\ref{alg-iterate}, Criterion~\ref{crit-stop}, Property~\ref{prop-monotone}.'
+    'proofs|article.tex|\begin{assumption}[Bounded utility]\label{asm-bounded}Utility is bounded'
+    'proofs|article.tex|\label{eq-bound}'
+    'proofs|article.tex|\includegraphics[width=0.1\linewidth]{files/'
+    'proofs|article.tex|\begin{algorithm}\label{alg-iterate}Iterate on (\ref{eq-bound})'
+    'proofs|article.tex|\textbf{raw inside the algorithm}'
+    'proofs|article.tex|\begin{criterion}[Stopping rule]\label{crit-stop}Stop when the residual of Algorithm~\ref{alg-iterate}'
+    'proofs|article.tex|\begin{property}\label{prop-monotone}The policy is monotone under Assumption~\ref{asm-bounded}'
+    'proofs|article.tex|\footnote{The footnote is referenced from inside the assumption.}'
+    'proofs|article.tex|KINDS: Assumption~\ref{asm-bounded}, Algorithm~\ref{alg-iterate}, Criterion~\ref{crit-stop}, Property~\ref{prop-monotone}.'
     'doi-links|article.tex|DOILINKS: the \href{https://doi.org/10.5281/zenodo.1234567}{replication files} and the badge \href{https://doi.org/10.5281/zenodo.1234567}{'
     'linked-images|article.tex|~badge \\href\{https://doi\.org/10\.5281/zenodo\.1234567\}\{\\includegraphics\[height=1em\]\{files/[^}]*\}\}\.'
     'stacked-labels|article.tex|STACKED: Section~\ref{stk-a} and Section~\ref{stk-a}, Figure~\ref{fig-above} and Figure~\ref{fig-above}.'
@@ -127,10 +127,10 @@ TEX_EXPECT=(
     'claim-fact|article.tex|\begin{claim}[Monotone policy]\label{clm-mono}CLAIMS: the policy rises with wealth.'
     'claim-fact|article.tex|\begin{fact}\label{fct-known}FACTS: a known fact.'
     'claim-fact|article.tex|CLREFS: Claim~\ref{clm-mono}.'
-    'proof-titles|article.tex|\begin{proposition}[Decay no faster than $1/x$]\label{prop-decay}TITLES: the consumption gap decays.'
-    'proof-titles|article.tex|\begin{proof}[Proof of Proposition~\ref{prop-decay}]TITLES-PROOF: by induction.'
-    'proof-titles|article.tex|\begin{remark}\label{rem-outer}TITLES-NEST:'
-    'proof-titles|article.tex|\begin{example}[Inner words]\label{ex-inner}An example.'
+    'proofs|article.tex|\begin{proposition}[Decay no faster than $1/x$]\label{prop-decay}TITLES: the consumption gap decays.'
+    'proofs|article.tex|\begin{proof}[Proof of Proposition~\ref{prop-decay}]TITLES-PROOF: by induction.'
+    'proofs|article.tex|\begin{remark}\label{rem-outer}TITLES-NEST:'
+    'proofs|article.tex|\begin{example}[Inner words]\label{ex-inner}An example.'
     'macros|article.tex|\providecommand{\HRat}{H}'
     'macros|article.tex|\providecommand{\Gfac}[1]{\Gamma_{#1}}'
     'macros|article.tex|\providecommand{\PageMac}{P}'
@@ -176,11 +176,19 @@ TEX_EXPECT=(
     'enumerate-labels|article.tex|\item[{(i)}] ENUM-FIRST condition.'
     'enumerate-labels|article.tex|\item[{(ii)}]\phantomsection\expandafter\def\csname @currentlabel\endcsname{(ii)} \label{enum-second}ENUM-SECOND condition.'
     'enumerate-labels|article.tex|ENUMREF: Condition~\ref{enum-second}.'
+    # the page's kinds as the samples define them, with Definition, Example and Remark upright
+    # and a kind used only unnumbered under its own name
+    'theorem-definitions|article.tex|\theoremstyle{definition}'
+    'theorem-definitions|article.tex|\newtheorem*{corollary}{Corollary}'
+    'theorem-definitions|article.tex|\begin{corollary}\phantomsection\label{cor-unnum}NONUMBER-ONLY:'
+    'theorem-definitions|algo.tex|~^\\theoremstyle\{plain\}$'
+    # and kept on a page with one, in its body (UNICODE) or in its title alone
+    'letter-maps|article.tex|\es@vi{1EA0}'
+    'letter-maps|nonum.tex|\es@vi{1EA0}'
     # template.tex lines, which only the full run reads (rejection runs read repairs' lines): a
-    # particle and a suffix in the author block, Definition/Example/Remark upright, emphasis
+    # particle and a suffix in the author block, emphasis upright in a theorem
     'template|article.tex|\fnms{Vincent}~\particle{van}~\snm{Gogh}'
     'template|article.tex|\snm{Lucas}, Jr.'
-    'template|article.tex|\es@upright{definition}\es@upright{example}\es@upright{remark}'
     'template|article.tex|\appto\th@plain{\let\textit\emph}'
 )
 
@@ -196,9 +204,15 @@ TEX_FORBID=(
     'doi-links|article.tex|\cite{doe2024data}'
     'quotes|article.tex|\caption*'
     'list-start|article.tex|[resume]'
-    'proof-titles|article.tex|[Decay no faster than ]'
-    'proof-titles|article.tex|[Proof of ]'
-    'proof-titles|article.tex|\begin{remark}[Inner words]'
+    'proofs|article.tex|[Decay no faster than ]'
+    # MyST's own definitions, numbered within sections, and kinds the page never uses
+    'proofs|article.tex|\newtheorem{theorem}{Theorem}[section]'
+    'theorem-definitions|article.tex|\newtheorem{conjecture}'
+    'theorem-definitions|algo.tex|\newtheorem{claim}'
+    # the letter maps, on a page whose characters T1 prints as they are
+    'letter-maps|algo.tex|\es@vi{1EA0}'
+    'proofs|article.tex|[Proof of ]'
+    'proofs|article.tex|\begin{remark}[Inner words]'
     'unnumbered-headings|article.tex|\{-\}'
     'unnumbered-headings|article.tex|\{.unnumbered\}'
     'page-links|article.tex|\href{/'
@@ -247,7 +261,7 @@ PDF_EXPECT=(
     'article.pdf|LAIM (Unnumbered). NONUMBER: a list that opens at 3.'
     'article.pdf|3. The third claim. 4. The fourth claim, with a list from 2: (b) A nested claim.'
     'article.pdf|HEOREM (Plain unnumbered). NONUMBER-THM'
-    'article.pdf|LISTREFS: Item 3, Item 4(b), the claim, ??thm-unnum.'
+    'article.pdf|LISTREFS: Item 3, Item 4(b), the claim, ??thm-unnum, the corollary.'
     'article.pdf|four, 1. LISTCELL'
     'article.pdf|LAIM 1 (Monotone policy). CLAIMS:'
     'article.pdf|CLREFS: Claim 1.'
@@ -289,6 +303,7 @@ PDF_EXPECT=(
     'article.pdf|LUCAS , J R .'
     "supplement.pdf|Supplement to ${LQUOTE}Main article${RQUOTE}"
     'article.pdf|UNICODE: Ko'
+    'nonum.pdf|Unnumbered note, Ko'
     "article.pdf|Stra${SZLIG}e"
     'nonum.pdf|NONUM: Second part, Section ??n-second.'
     'nonum.pdf|ECOND PART 1 A sub part'
@@ -332,6 +347,11 @@ tex_body() {
     grep -v '^%' "$1" | perl -0777 -pe '1 while s/\\iffalse (?:(?!\\iffalse ).)*?\\fi\{\}//gs'
 }
 
+# Whether a file contains a character that template.tex's xelatex letter maps map
+has_mapped() {
+    perl -CSD -0777 -ne 'exit(/[\x{a0}-\x{bf}\x{d7}\x{df}\x{f7}\x{ff}\x{100}-\x{10ffff}]/ ? 0 : 1)' "$1"
+}
+
 # failures DIR [REPAIR]: one line per failed .tex, .bib, log or site assertion for a built DIR,
 # limited to REPAIR's own assertions when one is named
 failures() {
@@ -353,13 +373,20 @@ failures() {
         mine "$plugin" || continue
         if has "${body[$file]:-}" "$text"; then echo "$file still contains: $text"; fi
     done
+    if mine letter-maps; then
+        # A .tex the template wrote without its letter maps must not contain a character they map
+        for file in "${TEX_FILES[@]}"; do
+            grep -qF '\es@ch' "$out/$file" || ! has_mapped "$out/$file" ||
+                echo "$file lacks the letter maps but contains a character they map"
+        done
+    fi
     if mine xref; then
         # A `??` the repairs write is `\textbf{??}label`; any other is LaTeX's or MyST's
         for file in "${!body[@]}"; do
             if grep -qF '??' <<<"${body[$file]//'\textbf{??}'/}"; then echo "$file contains ??"; fi
         done
     fi
-    if mine proof-kinds; then
+    if mine proofs; then
         grep 'Unhandled LaTeX proof environment' "$dir/_build/check.log" || true
     fi
     if mine part-citations; then
@@ -434,7 +461,7 @@ echo "OK: ${#TEX_EXPECT[@]} expected and ${#TEX_FORBID[@]} forbidden .tex lines,
 page=$FIXTURE/_build/site/content/index.json # article.md, the first page in the toc
 [ -f "$page" ] || die "no site page at $page"
 kinds=$(jq -r '[.mdast | .. | objects | select(.type == "proof") | .kind] | unique | join(" ")' "$page")
-[ "$kinds" = "algorithm assumption claim criterion definition example fact proof property proposition remark theorem" ] ||
+[ "$kinds" = "algorithm assumption claim corollary criterion definition example fact proof property proposition remark theorem" ] ||
     die "site proof kinds {$kinds}"
 jq -e '[.mdast | .. | objects | select(.data.partCitations? or .data.rawRefs?)] | length == 0' "$page" >/dev/null ||
     die "the site page still holds a hidden block of the repairs"
@@ -455,6 +482,8 @@ for repair in "${REPAIRS[@]}"; do
     done
     flags=(--tex)
     if [[ " ${SITE_REPAIRS[*]} " == *" $repair "* ]]; then flags+=(--site); fi
+    # The template's own theorem definitions must print what theorem-definitions prints (below)
+    if $PDF && [ "$repair" = theorem-definitions ]; then flags+=(--pdf); fi
     while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do wait -n; done
     (ECONSOC_DISABLE=$repair build "$blind" "${flags[@]}") &
 done
@@ -492,4 +521,19 @@ if $PDF; then
     [ "$twice" -eq 1 ] || { echo "article.pdf prints the twice-cited footnote $twice times"; n=$((n + 1)); }
     [ "$n" -eq 0 ] || die "the PDF assertions above failed"
     echo "OK: ${#PDF_EXPECT[@]} PDF lines, clean LaTeX logs; each document prints the numbers the other gives it"
+
+    # A paper without the plugin gets template.tex's definitions of every kind, renumbered and
+    # restyled; theorem-definitions writes the page's kinds directly. Both must print the same.
+    fallback=$BLIND/without-theorem-definitions/_build/out
+    grep -qF '\es@upright{definition}\es@upright{example}\es@upright{remark}' "$fallback/article.tex" ||
+        die "template.tex's fallback definitions are missing from $fallback/article.tex"
+    for file in "${!pdf_text[@]}"; do
+        [ -s "$fallback/$file" ] || die "the fallback build wrote no $file"
+        other=$(pdftotext -layout "$fallback/$file" - | tr -s '[:space:]' ' ')
+        [ "$other" = "${pdf_text[$file]}" ] || {
+            diff <(tr '.' '\n' <<<"${pdf_text[$file]}") <(tr '.' '\n' <<<"$other") | head -10
+            die "$file prints differently with template.tex's theorem definitions (above)"
+        }
+    done
+    echo "OK: template.tex's theorem definitions print the same PDF text as theorem-definitions"
 fi

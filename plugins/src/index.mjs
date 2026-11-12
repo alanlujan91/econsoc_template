@@ -1,5 +1,5 @@
 // The Econometric Society template's MyST plugin: every repair of a LaTeX export that released
-// mystmd gets wrong, one repair each (plugins/README.md lists them). ECONSOC_DISABLE=name,...
+// mystmd gets wrong, one repair each (docs/plugin-repairs.md lists them). ECONSOC_DISABLE=name,...
 // switches repairs off; scripts/check-plugins.sh uses it to require each repair's own assertions
 // to fail without it.
 //
@@ -15,6 +15,7 @@ import {
   blockBreaks,
   boxedFloats,
   ignoredImages,
+  letterMaps,
   macros,
   partHeadings,
   rawTables,
@@ -22,7 +23,14 @@ import {
   tableColumns,
   tableNotes,
 } from './floats.mjs';
-import { algorithmLines, claimFact, exercises, proofKinds, proofTitles, unnumberedProofs } from './proofs.mjs';
+import {
+  algorithmLines,
+  claimFact,
+  exercises,
+  proofs,
+  theoremDefinitions,
+  unnumberedProofs,
+} from './proofs.mjs';
 import {
   labelCase,
   missingRefs,
@@ -98,16 +106,19 @@ const REPAIRS = [
   // unnumbered-proofs first of the proof repairs, so it writes every `:nonumber:` proof
   unnumberedProofs,
   claimFact,
-  proofKinds,
-  proofTitles,
+  // proofs last of the proof repairs, writing every proof they left; theorem-definitions after
+  // it defines the environments they all wrote
+  proofs,
+  theoremDefinitions,
   // list-start after every block repair, so it reaches the lists inside their raw nodes
   listStart,
   // block-breaks follows every block repair, so it sees the raw blocks they wrote; macros reads
-  // their raw LaTeX; inline-raws, last, reaches all of it (ignored-images, a document-stage
-  // check, could sit anywhere)
+  // their raw LaTeX; inline-raws reaches all of it (ignored-images, a document-stage check,
+  // could sit anywhere); letter-maps, last, reads the text every other repair wrote
   blockBreaks,
   macros,
   inlineRaws,
+  letterMaps,
 ];
 
 const disabled = new Set((process.env.ECONSOC_DISABLE ?? '').split(',').filter(Boolean));

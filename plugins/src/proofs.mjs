@@ -1,24 +1,15 @@
-// The proof and exercise repairs: proof-kinds, proof-titles, claim-fact, unnumbered-proofs,
-// exercises and algorithm-lines, all block repairs built on blockRepair, which renders a
-// subtree to LaTeX.
+// The proof and exercise repairs: proofs, claim-fact, unnumbered-proofs, exercises and
+// algorithm-lines, all block repairs built on blockRepair, which renders a subtree to LaTeX.
 
 import { proofDirective } from 'myst-ext-proof';
-import { labelOf, rawLatex, renderTex, setProofWriter } from './util.mjs';
+import { isLazy, labelOf, rawLatex, renderTex, setProofWriter, texOnly } from './util.mjs';
 
-// ---------------------------------------------------------------------------------------------
-// proof-kinds
-// LaTeX for the four proof kinds that released myst-to-tex drops. mystmd 1.12.0 (myst-to-tex
-// 1.0.48) has no environment for {prf:assumption}, {prf:algorithm}, {prf:criterion} or
-// {prf:property}: it logs `Unhandled LaTeX proof environment` and writes neither the body nor
-// the `\label`, so every `\ref` to one prints `??` (jupyter-book/mystmd#3030, fix in #3031).
-//
-// Each such block is swapped for a raw node (util.rawLatex) whose LaTeX proofTex writes. The
-// site labels a box from its `kind`, so the kind cannot be changed to one myst-to-tex knows.
-// template.tex defines the four environments. theoremTex, proofTex and blockRepair are shared
-// with the other block repairs (proof-titles, claim-fact, exercises), and util.renderTex sends
-// every proof inside a subtree it renders to proofTex as well.
+// theoremTex, proofTex and blockRepair are shared by the block repairs, and util.renderTex sends
+// every proof inside a subtree it renders to proofTex as well. Each block is swapped for a raw
+// node (util.rawLatex) whose LaTeX its writer renders; the site labels a box from its `kind`,
+// so a kind cannot be changed to one myst-to-tex knows.
 
-// Proof kind -> the environment template.tex or MyST's injected preamble defines for it
+// Proof kind -> its environment
 const ENVIRONMENTS = new Map(
   [
     'theorem', 'proof', 'proposition', 'definition', 'example', 'remark', 'axiom', 'conjecture',
@@ -26,8 +17,6 @@ const ENVIRONMENTS = new Map(
     'claim', 'fact',
   ].map((kind) => [kind, kind]),
 );
-
-const DROPPED = new Set(['assumption', 'algorithm', 'criterion', 'property']);
 
 const titleOf = (node) => node.children?.find((child) => child.type === 'admonitionTitle');
 
@@ -40,8 +29,12 @@ const optional = (tex) => (!tex ? '' : tex.includes(']') ? `[{${tex}}]` : `[${te
 function theoremTex(env, node, footnotes, file, { heading = '', title = titleOf(node) } = {}) {
   const body = (node.children ?? []).filter((child) => child !== titleOf(node));
   const titleTex = title ? renderTex(title.children ?? [], footnotes, file).trim() : '';
-  const anchor = env.endsWith('*') || env === 'solution' ? '\\phantomsection' : '';
-  const label = labelOf(node) ? `${anchor}\\label{${labelOf(node)}}` : '';
+  const unnumbered = env.endsWith('*') || env === 'solution' || Boolean(node.data?.econsocUnnumbered);
+  const anchor = unnumbered ? '\\phantomsection' : '';
+  // A proof's label is its lowercased identifier, as myst-to-tex writes it and label-case spells
+  // the references to it (refs.mjs texLabelOf); an exercise keeps its label as written
+  const id = node.type === 'proof' ? node.identifier : labelOf(node);
+  const label = id ? `${anchor}\\label{${id}}` : '';
   const bodyTex = renderTex(body, footnotes, file).trim();
   // A body opening with `[` would be read as the title when nothing stands between
   const guard = !titleTex && !label && bodyTex.startsWith('[') ? '{}' : '';
@@ -54,10 +47,14 @@ let starUnnumbered = false;
 const UNNUMBERED = new Set(['proof', 'fact']);
 const isStarred = (node) => node.enumerated === false && !UNNUMBERED.has(ENVIRONMENTS.get(node.kind ?? 'proof'));
 
-const proofTex = (node, footnotes, file) => {
+// The environment proofTex writes a proof into; the proofs repair may name it for the page
+const envOf = (node) => {
+  if (node.data?.econsocEnv) return node.data.econsocEnv;
   const env = ENVIRONMENTS.get(node.kind ?? 'proof');
-  return theoremTex(starUnnumbered && isStarred(node) ? `${env}*` : env, node, footnotes, file);
+  return starUnnumbered && isStarred(node) ? `${env}*` : env;
 };
+
+const proofTex = (node, footnotes, file) => theoremTex(envOf(node), node, footnotes, file);
 
 // A proof inside a block rendered whole, whichever repair selected the block, so the bundled
 // proof handler never sees one
@@ -81,57 +78,157 @@ function blockRepair({ name, doc, select, write = proofTex }) {
   };
 }
 
-const proofKindsTransform = blockRepair({
-  name: 'proof-kinds',
-  doc: 'LaTeX for the proof kinds released myst-to-tex drops',
-  select: (node) => node.type === 'proof' && DROPPED.has(node.kind),
-});
-
-export const proofKinds = { repair: 'proof-kinds', transforms: [proofKindsTransform] };
-
 // ---------------------------------------------------------------------------------------------
-// proof-titles
-// Proof titles holding anything but plain words. Released myst-to-tex (1.12.0) writes a proof's
-// optional argument from `select('admonitionTitle > text')`, the FIRST text node of the title,
-// verbatim, and renders the rest of the title into the body: inline math, an `abbreviations:`
-// token, a role or a {prf:ref} spill out as a bold fragment ("Theorem 1 ( Regularity). EGM",
-// "Proof of . Proposition 1"). The same unescaped write lets a `%`, `&` or `]` break the build.
+// proofs
+// Every proof, written by proofTex, and the definitions of the kinds a page uses. Released
+// myst-to-tex (mystmd 1.13.0, myst-to-tex 1.0.48) gets three things wrong:
 //
-// The select searches the whole block, so an UNTITLED proof steals the title of a proof nested in
-// it ("Theorem 1 (Inner words)", and the inner one loses its title); and an untitled, unlabelled
-// proof whose body opens with `[` has that bracket read as its title.
+// - Four kinds it drops. It has no environment for {prf:assumption}, {prf:algorithm},
+//   {prf:criterion} or {prf:property}: it logs `Unhandled LaTeX proof environment` and writes
+//   neither the body nor the `\label`, so every `\ref` to one prints `??`
+//   (jupyter-book/mystmd#3030, fix in #3031).
+// - Titles holding anything but plain words. It writes a proof's optional argument from
+//   `select('admonitionTitle > text')`, the FIRST text node of the title, verbatim, and renders
+//   the rest of the title into the body: inline math, an `abbreviations:` token, a role or a
+//   {prf:ref} spill out as a bold fragment ("Theorem 1 ( Regularity). EGM", "Proof of .
+//   Proposition 1"), and a `%`, `&` or `]` breaks the build. The select searches the whole block,
+//   so an UNTITLED proof steals the title of a proof nested in it, and an untitled, unlabelled
+//   proof whose body opens with `[` has that bracket read as its title. proofTex renders a title
+//   from all its children, after the inline repairs (xref) have fixed the references inside it.
+// - The theorem preamble. Whenever a page holds a proof it defines ten kinds, each numbered
+//   within its section (`\newtheorem{theorem}{Theorem}[section]`): template.tex has to renumber
+//   them through the paper, and the .tex defines every kind, used or not. The upstream samples
+//   define only the kinds they use, in \startlocaldefs, numbered through the paper. With every
+//   proof written here, myst-to-tex writes none and injects no definition (it does so only on
+//   `hasProofs`; econsocart loads amsthm itself).
 //
-// Every proof whose title is not one such safe text node is swapped for a raw node whose LaTeX
-// proofTex writes (proof-kinds above), the title rendered from all its children. A block, so it
-// runs after the inline repairs (xref) have fixed the references inside the title.
+// The environments the page uses, read from its proof and exercise nodes (raw nodes keep theirs
+// as children) and from `\begin{...}` in its own raw LaTeX, are defined as the samples define
+// them, in the template part `econsoc_localdefs`. template.tex sets that part in \startlocaldefs
+// in place of its definitions of every kind, which a page without the plugin still gets; the two
+// must agree, and scripts/check-plugins.sh --pdf requires the same PDF text from both.
 
-// The first text at the start of a block, '' when it opens with anything else
-const firstText = (node) => (node.type === 'text' ? node.value ?? '' : node.children?.[0] ? firstText(node.children[0]) : '');
+// The kinds in the samples' order, each with its heading, its style, and the counter it shares
+const THEOREMS = [
+  { env: 'axiom', name: 'Axiom' },
+  { env: 'theorem', name: 'Theorem' },
+  { env: 'claim', name: 'Claim' },
+  { env: 'lemma', name: 'Lemma', counter: 'theorem' },
+  { env: 'fact', name: 'Fact', unnumbered: true },
+  { env: 'corollary', name: 'Corollary' },
+  { env: 'proposition', name: 'Proposition' },
+  { env: 'conjecture', name: 'Conjecture' },
+  { env: 'observation', name: 'Observation' },
+  { env: 'assumption', name: 'Assumption' },
+  { env: 'algorithm', name: 'Algorithm' },
+  { env: 'criterion', name: 'Criterion' },
+  { env: 'property', name: 'Property' },
+  { env: 'exercise', name: 'Exercise' },
+  { env: 'definition', name: 'Definition', style: 'definition' },
+  { env: 'example', name: 'Example', style: 'definition' },
+  { env: 'remark', name: 'Remark', style: 'definition' },
+];
 
-// What released myst-to-tex writes right: one text node with no LaTeX special and no `]`
-function plainTitle(title) {
-  const [only, ...rest] = title.children ?? [];
-  return !rest.length && only?.type === 'text' && !/[\\{}#$%&_^~\]]/.test(only.value ?? '');
+// `solution` takes its heading as its argument, "Solution to Exercise~\ref{...}" (exercises)
+const SOLUTION = [
+  '\\makeatletter',
+  '\\newtheorem*{es@solution}{\\es@solutionhead}',
+  '\\newenvironment{solution}[1]{\\def\\es@solutionhead{#1}\\begin{es@solution}}{\\end{es@solution}}',
+  '\\makeatother',
+];
+
+const KNOWN = new Set([...THEOREMS.flatMap(({ env }) => [env, `${env}*`]), 'solution']);
+const BEGIN = /\\begin\{([A-Za-z]+\*?)\}/g;
+const PLAIN = new Set(THEOREMS.filter((kind) => !kind.style).map(({ env }) => env));
+
+// myst-to-tex writes emphasis as \textit, invisible in an italic (plain) theorem body: the page
+// needs \textit to switch to upright there, as a hand-written \emph does
+const emphasisIn = (node) => node.type === 'emphasis' || (node.children ?? []).some(emphasisIn);
+
+// The page's theorem environments: `nodes`, those the plugin writes from proof and exercise nodes
+// (raw nodes keep theirs as children), and `authored`, those its own raw LaTeX opens
+function environmentsUsed(tree) {
+  const nodes = new Map();
+  const authored = new Set();
+  let plainEmphasis = false;
+  const visit = (node) => {
+    const add = (env) => nodes.set(env, [...(nodes.get(env) ?? []), node]);
+    if (node.type === 'proof' && ENVIRONMENTS.has(node.kind ?? 'proof')) {
+      add(envOf(node));
+      if (PLAIN.has(ENVIRONMENTS.get(node.kind ?? 'proof')) && emphasisIn(node)) plainEmphasis = true;
+    }
+    if (node.type === 'exercise' && !node.hidden) add(node.enumerated === false ? 'exercise*' : 'exercise');
+    if (node.type === 'solution' && !node.hidden) add('solution');
+    // A repair's raw node renders lazily and holds its original instead
+    const text = node.type === 'raw' && !isLazy(node) ? (node.value ?? node.tex) : undefined;
+    if (typeof text === 'string') for (const [, env] of text.matchAll(BEGIN)) if (KNOWN.has(env)) authored.add(env);
+    node.children?.forEach(visit);
+  };
+  visit(tree);
+  return { nodes, authored, plainEmphasis };
 }
 
-// True when a title with a text child lies anywhere below `node`, raw nodes' children included
-const titleBelow = (node) =>
-  (node.children ?? []).some((child) =>
-    (child.type === 'admonitionTitle' && child.children?.some((c) => c.type === 'text')) || titleBelow(child));
+// A kind the plugin writes only unnumbered is defined unnumbered under its own name, as the
+// samples define Example and Fact: its proofs are named for the page (envOf) and keep the anchor
+// an unnumbered environment needs. Returns every environment to define and the unnumbered ones.
+function nameEnvironments({ nodes, authored }) {
+  const used = new Set([...nodes.keys(), ...authored]);
+  const unnumbered = new Set(THEOREMS.filter((kind) => kind.unnumbered).map(({ env }) => env));
+  for (const { env } of THEOREMS) {
+    const starred = `${env}*`;
+    if (!nodes.has(starred) || used.has(env) || authored.has(starred)) continue;
+    for (const node of nodes.get(starred)) node.data = { ...node.data, econsocEnv: env, econsocUnnumbered: true };
+    used.delete(starred);
+    used.add(env);
+    unnumbered.add(env);
+  }
+  if (used.has('lemma')) used.add('theorem');
+  if (used.has('solution') || used.has('exercise*')) used.add('exercise');
+  return { used, unnumbered };
+}
 
-const proofTitlesTransform = blockRepair({
-  name: 'proof-titles',
-  doc: 'LaTeX for proof titles holding math, abbreviations, roles or references',
-  select: (node) => {
-    if (node.type !== 'proof' || !ENVIRONMENTS.has(node.kind ?? 'proof')) return false;
-    const title = titleOf(node);
-    if (title) return !plainTitle(title);
-    // With no title and no label, a body opening with `[` is read as the title ("Remark 1 (1).")
-    return titleBelow(node) || (!labelOf(node) && /^\s*\[/.test(firstText(node)));
-  },
+// The definitions, plain kinds first and then the definition style, as the samples lay them out
+function definitionsTex({ used, unnumbered }, plainEmphasis) {
+  const lines = [];
+  for (const style of ['plain', 'definition']) {
+    const kinds = THEOREMS.filter((kind) => (kind.style ?? 'plain') === style);
+    const defs = kinds.flatMap(({ env, name, counter }) => [
+      ...(!used.has(env) ? [] : unnumbered.has(env) ? [`\\newtheorem*{${env}}{${name}}`] : [`\\newtheorem{${env}}${counter ? `[${counter}]` : ''}{${name}}`]),
+      ...(used.has(`${env}*`) ? [`\\newtheorem*{${env}*}{${name}}`] : []),
+    ]);
+    if (style === 'plain' && used.has('solution')) defs.push(...SOLUTION);
+    if (defs.length) lines.push(`\\theoremstyle{${style}}`, ...defs);
+  }
+  if (plainEmphasis) lines.push('\\makeatletter', '\\appto\\th@plain{\\let\\textit\\emph}', '\\makeatother');
+  return lines.length ? lines.join('\n') : '%% No theorem environments';
+}
+
+export const LOCALDEFS = 'econsoc_localdefs';
+
+const proofsTransform = blockRepair({
+  name: 'proofs',
+  doc: 'LaTeX for every proof',
+  select: (node) => node.type === 'proof' && ENVIRONMENTS.has(node.kind ?? 'proof'),
 });
 
-export const proofTitles = { repair: 'proof-titles', transforms: [proofTitlesTransform] };
+export const proofs = { repair: 'proofs', transforms: [proofsTransform] };
+
+// theorem-definitions, the third bug above: the definitions of the kinds the page uses, as the
+// part template.tex sets in \startlocaldefs. Without it the template defines every kind itself,
+// and scripts/check-plugins.sh --pdf requires the two to print the same. After proofs, whose raw
+// nodes render lazily, so the names it gives a page's environments (envOf) still reach them.
+const theoremDefinitionsTransform = {
+  name: 'theorem-definitions',
+  doc: 'The definitions of the theorem environments a page uses',
+  stage: 'project',
+  plugin: () => (tree) => {
+    const found = environmentsUsed(tree);
+    const defs = definitionsTex(nameEnvironments(found), found.plainEmphasis);
+    tree.children = [...(tree.children ?? []), { type: 'block', data: { part: LOCALDEFS }, children: [texOnly(defs)] }];
+  },
+};
+
+export const theoremDefinitions = { repair: 'theorem-definitions', transforms: [theoremDefinitionsTransform] };
 
 // ---------------------------------------------------------------------------------------------
 // claim-fact
@@ -141,7 +238,7 @@ export const proofTitles = { repair: 'proof-titles', transforms: [proofTitlesTra
 // Both are registered here as proof directives, MyST's own (myst-ext-proof) under new names, so
 // the site renders a "Claim 1" or "Fact" box as for any proof kind and references resolve.
 // Released myst-to-tex drops a proof kind it does not know, so the LaTeX is written by proofTex
-// (proof-kinds above) into template.tex's `claim` (numbered) and `fact` (starred) environments.
+// (the proofs repair above) into template.tex's `claim` (numbered) and `fact` (starred) environments.
 
 // `fact` is starred in template.tex, so the site leaves it unnumbered too
 const claimFactDirective = (kind, numbered) => ({

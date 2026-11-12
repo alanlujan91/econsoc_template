@@ -1,10 +1,13 @@
-// The float, macro and part repairs: raw-tables, table-columns, table-notes, subfigures,
-// boxed-floats, ignored-images, block-breaks, macros and part-headings.
+// The float, macro, preamble and part repairs: raw-tables, table-columns, table-notes,
+// subfigures, boxed-floats, ignored-images, block-breaks, macros, letter-maps and part-headings.
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import yaml from 'js-yaml';
+import { citedBibText } from './citations.mjs';
 import {
+  asList,
   collect,
   cutText,
   escapeRegExp as escapeRe,
@@ -12,9 +15,11 @@ import {
   MINUS_SIGN,
   pageParts,
   projectConfig,
+  projectRoot,
   rawLatex,
   readFrontmatter,
   renderTex,
+  sourceFile,
   replaceNode as replace,
   splitTexts,
   texOnly,
@@ -430,8 +435,8 @@ const ignoredImagesTransform = {
   doc: 'Warns of each image that is on disk but gitignored, so a clean checkout lacks it',
   stage: 'document',
   plugin: (_opts, utils) => (tree, vfile) => {
-    const file = vfile.path;
-    if (!file || file.includes('#') || !fs.existsSync(file)) return;
+    const file = sourceFile(vfile);
+    if (!file) return;
     const dir = path.dirname(file);
     // A url without an extension names whichever such file MyST picks; check each that exists
     const local = utils.selectAll('image', tree).filter((image) => image.url && !/^[a-z]+:/i.test(image.url));
@@ -566,6 +571,86 @@ const rawMacros = {
 };
 
 export const macros = { repair: 'macros', transforms: [rawMacros] };
+
+// ---------------------------------------------------------------------------------------------
+// letter-maps
+// template.tex maps, under xelatex, every character the T1 font would drop or misprint (U+00A0
+// to U+00BF, U+00D7, U+00DF, U+00F7, U+00FF and everything past U+00FF) to its LICR: 22 lines
+// of preamble a page without such a character never uses. This repair writes the part
+// econsoc_letters_off when the export can write none: not the body as myst-to-tex renders it
+// (which writes U+00A0 as `~` and a curly quote as `'`), nor what reaches the LaTeX unrendered,
+// the frontmatter the template copies, its parts, every myst.yml the page can inherit from and
+// its references' .bib entries. The template then leaves the maps out. Without the plugin,
+// without this repair or with a reference it cannot read (a DOI citation), the part is absent
+// and the maps stay.
+
+export const LETTERS_OFF = 'econsoc_letters_off';
+
+const MAPPED_POINTS = new Set([0xd7, 0xdf, 0xf7, 0xff]);
+const isMapped = (point) => (point >= 0xa0 && point <= 0xbf) || point > 0xff || MAPPED_POINTS.has(point);
+const hasMapped = (text) => {
+  for (const c of text) if (isMapped(c.codePointAt(0))) return true;
+  return false;
+};
+const XML_ENTITIES = new Set(['amp', 'lt', 'gt', 'quot', 'apos']);
+
+// Whether source text needs the maps: a mapped character typed or written as an HTML entity,
+// which MyST decodes; a named entity past the five XML ones may be any character, so it counts
+function sourceNeedsMaps(text) {
+  if (hasMapped(text)) return true;
+  for (const [, named, dec, hex] of text.matchAll(/&(?:([A-Za-z][A-Za-z0-9]*)|#([0-9]+)|#[xX]([0-9A-Fa-f]+));/g)) {
+    if (named ? !XML_ENTITIES.has(named) : isMapped(Number.parseInt(dec ?? hex, dec ? 10 : 16))) return true;
+  }
+  return false;
+}
+
+// The text of every config the page may inherit from: the myst.yml files at and above the
+// project root and the files their `extends:` names, followed; undefined when one is a URL or
+// cannot be read or parsed, whose text is then unknown
+function inheritedConfigs(root) {
+  const texts = [];
+  const seen = new Set();
+  const visit = (file) => {
+    if (seen.has(file)) return true;
+    seen.add(file);
+    try {
+      const text = fs.readFileSync(file, 'utf8');
+      texts.push(text);
+      const extended = asList(yaml.load(text)?.extends);
+      return extended.every((entry) => {
+        const target = typeof entry === 'string' ? entry : entry?.url;
+        return typeof target === 'string' && !/^[a-z]+:\/\//i.test(target) && visit(path.resolve(path.dirname(file), target));
+      });
+    } catch {
+      return false;
+    }
+  };
+  for (let d = path.resolve(root); ; d = path.dirname(d)) {
+    const file = path.join(d, 'myst.yml');
+    if (fs.existsSync(file) && !visit(file)) return undefined;
+    if (path.dirname(d) === d) return texts;
+  }
+}
+
+const lettersTransform = {
+  name: 'letter-maps',
+  doc: 'Marks a page whose typeset text needs no xelatex letter map, so the template leaves the maps out',
+  stage: 'project',
+  plugin: (_opts, utils) => (tree, vfile) => {
+    const file = sourceFile(vfile);
+    if (!tree.children || !file) return;
+    // A file of its own, so the render's warnings do not repeat the export's
+    if (hasMapped(renderTex(tree.children, footnotesOf(utils, tree), { path: file, messages: [] }))) return;
+    const bib = citedBibText(tree, file);
+    const configs = inheritedConfigs(projectRoot(file));
+    if (bib === undefined || configs === undefined) return;
+    const unrendered = [JSON.stringify(readFrontmatter(file)), ...pageParts(file).map((part) => part.source ?? ''), ...configs, bib];
+    if (unrendered.some(sourceNeedsMaps)) return;
+    tree.children = [...tree.children, { type: 'block', data: { part: LETTERS_OFF }, children: [texOnly('%% No letter maps')] }];
+  },
+};
+
+export const letterMaps = { repair: 'letter-maps', transforms: [lettersTransform] };
 
 // ---------------------------------------------------------------------------------------------
 // part-headings

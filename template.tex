@@ -20,22 +20,25 @@
 
 \startlocaldefs
 
+%% plugins/econsoc.mjs defines the theorem environments the paper uses, as the upstream
+%% samples do; without the plugin, this template defines every kind (below).
+[# if parts.econsoc_localdefs #]
+[-parts.econsoc_localdefs-]
+[# else #]
 %% claim and fact are not MyST proof kinds: plugins/econsoc.mjs adds prf:claim
-%% and prf:fact, and raw-LaTeX blocks use them. See README "Proof directives".
+%% and prf:fact, and raw-LaTeX blocks use them. See docs/myst-authoring.md, "Proof directives".
 \theoremstyle{plain}
 \newtheorem{claim}{Claim}
 \newtheorem*{fact}{Fact}
+[# endif #]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Please put your definitions here:        %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% Packages MyST's LaTeX renderer does not auto-inject and econsocart does not
-%% provide, loaded so raw-LaTeX content using them compiles. cleveref loads later
-%% (it must follow hyperref). Full list and exclusions: README "LaTeX packages".
-%% booktabs and array are loaded UNCONDITIONALLY: MyST injects booktabs only for
-%% tables it emits itself, so a raw-LaTeX table's \toprule was an undefined
-%% control sequence and the PDF rendered the table with every rule missing.
+%% Packages MyST does not auto-inject and econsocart lacks, loaded so raw-LaTeX content compiles.
+%% booktabs and array load always: MyST injects booktabs only for the tables it writes itself.
+%% cleveref loads after hyperref. Full list: docs/myst-authoring.md, "LaTeX packages".
 \usepackage{booktabs}
 \usepackage{array}
 \usepackage{algpseudocode}
@@ -58,7 +61,7 @@
 
 %% Author-supplied packages via the `extra_packages` export option, e.g.
 %%   extra_packages: tikz,pgfplots
-%% See README "LaTeX packages" for the three that must not be listed.
+%% See docs/myst-authoring.md, "LaTeX packages", for the three that must not be listed.
 [# if options.extra_packages #]
 \usepackage{[-options.extra_packages-]}
 [# endif #]
@@ -68,6 +71,7 @@
 %% nothing actually loads suppresses the injection and breaks the build.
 [-IMPORTS-]
 
+[# if not parts.econsoc_localdefs #]
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Theorem numbering                        %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -92,7 +96,7 @@
 
 %% The four prf kinds released myst-to-tex drops (upstream issue 3030), which
 %% plugins/econsoc.mjs restores. algorithm is a theorem, not the float
-%% package. See README "Algorithms" and docs/template-internals.md.
+%% package. See docs/myst-authoring.md, "Algorithms", and docs/template-internals.md.
 \theoremstyle{plain}
 \newtheorem{assumption}{Assumption}
 \newtheorem{algorithm}{Algorithm}
@@ -133,12 +137,15 @@
 %% \emph switches to upright there, as a hand-written \emph does.
 \appto\th@plain{\let\textit\emph}
 \makeatother
-%% Opt-in aliases for the axiom/observation workaround: the block prints and
-%% numbers as Assumption/Algorithm. Off by default, so a genuine axiom keeps its name.
+[# endif #]
+%% Opt-in aliases for the axiom/observation workaround: the block prints and numbers as
+%% Assumption/Algorithm, defined here when the plugin defined only the kinds the paper uses.
 [# if options.axiom_as_assumption #]
+\makeatletter\@ifundefined{assumption}{\theoremstyle{plain}\newtheorem{assumption}{Assumption}}{}\makeatother
 \let\axiom\assumption\let\endaxiom\endassumption
 [# endif #]
 [# if options.observation_as_algorithm #]
+\makeatletter\@ifundefined{algorithm}{\theoremstyle{plain}\newtheorem{algorithm}{Algorithm}}{}\makeatother
 \let\observation\algorithm\let\endobservation\endalgorithm
 [# endif #]
 
@@ -153,7 +160,7 @@
 
 %% Preprint strips the journal IDENTIFICATION while keeping the journal's own
 %% layout, class option and bibliography style. Orthogonal to `journal`.
-%% See README "Preprint mode".
+%% See docs/template-options.md, "Preprint mode".
 [# if options.preprint #]
 \makeatletter
 %% Empty the journal name via \form@runauthors, never by rewriting \markboth, and
@@ -171,7 +178,9 @@
 [# endif #]
 
 %% xelatex hands the T1 font raw code points: past U+00FF they vanish, and U+00A0-00BF,
-%% U+00D7/DF/F7/FF print wrong glyphs. Map those to the LICR pdflatex's utf8 would use.
+%% U+00D7/DF/F7/FF print wrong glyphs. Map those to the LICR pdflatex's utf8 would use,
+%% unless plugins/econsoc.mjs found no such character in the paper.
+[# if not parts.econsoc_letters_off #]
 \ifdefined\XeTeXrevision
 \makeatletter
 %% As in pdflatex, a mapped char is its LICR when typeset, itself in a write, a string in a \csname.
@@ -194,6 +203,7 @@
 \es@vi{1ED8}\d\^Oo\es@vi{1EE4}\d{}Uu\es@vi{1EF4}\d{}Yy\es@vi{1EF8}\~{}Yy
 \makeatother
 \fi
+[# endif #]
 
 \endlocaldefs
 
@@ -292,7 +302,7 @@
 %
 %% Suppressed in preprint mode: the class placeholder asserts a co-editor handled
 %% the manuscript, which is the submission signal `preprint` exists to strip.
-%% See README "Template Options".
+%% See docs/template-options.md.
 [# if not options.preprint #]
 \coeditor{\fnm{[Name} \snm{Surname}; will be inserted later]}
 [# endif #]
@@ -346,7 +356,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% A frontmatter `appendix` part needs plugins/econsoc.mjs: without it, references
 %% cited only there never reach the .bib and its headings drop a level, losing the
-%% appendix letters. See README "Appendices".
+%% appendix letters. See docs/myst-authoring.md, "Appendices".
 [# if parts.appendix #]
 \begin{appendix}
 [-parts.appendix-]

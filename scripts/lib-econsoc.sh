@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Shared helpers for the vendoring, build and check scripts. A helper two scripts need is defined
-# here once, so a mapping such as journal-to-style has one place to go wrong.
+# Shared helpers for the vendoring, build and check scripts. This file defines once each helper
+# two scripts need, so a mapping such as journal-to-style has one place to go wrong.
 
 die() {
     echo "ERROR: $*" >&2
@@ -42,6 +42,14 @@ cited_keys() {
 # Succeed when a myst build log shows the jtex render aborted (myst still exits 0)
 render_aborted() {
     grep -qE 'Template render error|TypeError' "$1"
+}
+
+# probe_init sets `work`, a scratch directory removed on exit, and falls back to the
+# repository's .venv myst when none is on PATH. The caller sets `repo` first.
+probe_init() {
+    work=$(mktemp -d)
+    trap 'rm -rf "$work"' EXIT
+    command -v myst >/dev/null 2>&1 || myst() { "$repo/.venv/bin/myst" "$@"; }
 }
 
 # Entry keys of a .bib, in file order

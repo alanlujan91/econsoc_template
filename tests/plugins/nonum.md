@@ -1,5 +1,5 @@
 ---
-title: Unnumbered note
+title: "Unnumbered note, Kőszegi"
 short_title: Note
 numbering:
   headings: false
