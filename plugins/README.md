@@ -62,12 +62,12 @@ website too.
 | --- | --- | --- |
 | `xref` | a reference into the sibling document prints `??`; link wording is lost; a numbered link to a section prints `??` in a single-article export ([#3035](https://github.com/jupyter-book/mystmd/pull/3035)); an appendix section is called "Section" | the forms in the table below |
 | `target-labels` | a worded link to a target myst-to-tex leaves unlabelled (a paragraph, a list, a code block) writes `\hyperref` to an undefined label, and LaTeX's "There were undefined references" then hides the real ones; a link cannot give an ordered-list item's number | `\phantomsection\label{x}` at the target; `\label{x}` inside the `\item`, so `[Item %s](#x)` prints "Item 2", nested items "2(a)" and "2(a)i", across documents too. Site: an item link reads "Item 2" |
-| `unnumbered-refs` | a reference to a target LaTeX does not number (a paragraph, a code block, an `:enumerated: false` equation, an uncaptioned figure, a heading on a `headings: false` page) prints a bare "Paragraph" or "Equation", or a wrong number | `??label` and a build warning; worded links keep their words, and a bare link to a heading keeps MyST's title |
+| `unnumbered-refs` | a reference to a target LaTeX does not number (a paragraph, a code block, an `:enumerated: false` equation, an uncaptioned figure, a heading or equation a numbering key turns off, a `:nonumber:` proof, a solution) prints a bare "Paragraph" or "Equation", or a wrong number: `[Solution %s](#sol)` prints the enclosing section's | `??label` and a build warning; worded links keep their words, a bare link to a heading prints its title, and one to a solution the site's "Solution to Exercise 1", linked to it |
 | `missing-refs` | `[](#x)` to an undefined label prints nothing, so no `??` gate sees it | `??x` and a build warning. A label defined by `\label{x}` in a raw LaTeX block of the page resolves to `\ref{x}` with its environment's word |
 | `label-case` | `\ref` takes the link's spelling while a proof lowercases its `\label`, so a mixed-case label works on the site and prints `??` | every `\ref` and `\hyperref` takes the label its target writes |
 | `stacked-labels` | of stacked `(a)=` and `(b)=` lines, or a `(a)=` line above a directive's `:label: b`, one label survives; links to the other print nothing and fail on the site | links to the lost label point at the survivor, in every page. Site |
 | `raw-refs` | a MyST link inside a `{raw} latex` block reaches the PDF verbatim | the link is resolved, across documents too, and written as any other link |
-| `section-numbering` | page frontmatter `numbering: {headings: false}` unnumbers the site's headings and never reaches the LaTeX | the page opens with `\setcounter{secnumdepth}{0}` and restores the value after it |
+| `section-numbering` | a numbering key set false (`headings`, `heading_N`, `equation`, `all`, in the page or `myst.yml`) unnumbers the site's headings or equations and never reaches the LaTeX | each such heading is set with `secnumdepth` lowered around it, and a numbered level below it skips it, as the site's "1.1" does; each such equation is `equation*`. A bare link to a heading a key numbers prints its number |
 
 `xref` writes these forms:
 
@@ -102,17 +102,13 @@ Limitations:
 - `xref` finds the appendix from a raw `\begin{appendix}` (or `\appendix`) block in the
   same page, or from the page's `appendix` part, the two forms the main README
   describes.
-- Item numbers follow LaTeX's counters. A list that starts at 3 prints "1." in the PDF,
-  because myst-to-tex writes `[resume]`, which econsocart reads as a label-width
-  argument; a link to its first item then reads "Item 1" on the site too, next to the
-  site's marker "3". A nested item reads "2(a)" whatever markers the theme draws.
+- A nested item reads "2(a)" whatever markers the theme draws.
 - `stacked-labels` reads the `.md` sources, and only targets on consecutive lines. It
   does not write a second `\label`, so a hand-typed raw `\ref` to the lost name still fails.
-- `section-numbering` handles `headings: false` only. Page-level `heading_N: false`
-  changes the site alone: the LaTeX level it names shifts with `numbering.title`, and
-  `secnumdepth` cannot unnumber one level above a numbered one. Page-level
-  `equation: false` never reaches the export either; the PDF numbers the equation,
-  consistently.
+- `section-numbering` maps `heading_N` to a heading by its rank among the page's
+  heading depths, shifted by a numbered `title`, as the site does for a page at the top
+  of the table of contents. It skips a frontmatter part, and leaves `subequation` and a
+  `start` alone.
 - A link to another page, `[supplement](supplement.md)`, is written
   `\href{/supplement}{...}`, a root-relative URL that is dead in a standalone PDF. A
   plugin gets only the tree and the file path, so it can neither build an absolute URL
@@ -160,17 +156,15 @@ Limitations:
 | `proof-kinds` | `{prf:assumption}`, `{prf:algorithm}`, `{prf:criterion}`, and `{prf:property}` are dropped with their `\label`, so references print `??` ([#3030](https://github.com/jupyter-book/mystmd/issues/3030), fix [#3031](https://github.com/jupyter-book/mystmd/pull/3031)) | `\begin{assumption}[Title]\label{...} ... \end{assumption}` in the template's environments, numbered by its counters; the main README's `{prf:axiom}` workaround is then unnecessary |
 | `proof-titles` | a title holding math, an abbreviation, a role or a `{prf:ref}` spills into the body ("Theorem 1 ( Regularity). EGM", "Proof of . Proposition 1"); an untitled proof takes the title of a proof nested in it; an untitled, unlabelled block whose body opens with `[` reads that text as its title; a `%`, `&`, or `]` in a title breaks the build | the title rendered from all its children, `\begin{proof}[Proof of Proposition~\ref{p}]` |
 | `claim-fact` | `{prf:claim}` and `{prf:fact}` are unknown: the site shows an "Unknown Directive" box, the PDF gets nothing, the log says nothing | both are proof directives: `\begin{claim}[Title]\label{...}` (numbered) and `\begin{fact}` (unnumbered). Site: a "Claim 1" or "Fact" box |
-| `exercises` | `{exercise}` and `{solution}` are dropped whole, every `\label` inside included | `\begin{exercise}[Title]\label{...}`, `exercise*` under `:nonumber:`, and `\begin{solution}{Solution to Exercise~\ref{...}}`; a `:hidden:` block stays out of the LaTeX |
+| `unnumbered-proofs` | `:nonumber:` on a proof is ignored in LaTeX: the site prints "Claim", the PDF "Claim 2" | the kind's starred environment, `\begin{claim*}[Title]\phantomsection\label{...}`, which template.tex defines for every kind |
+| `exercises` | `{exercise}` and `{solution}` are dropped whole, every `\label` inside included | `\begin{exercise}[Title]\label{...}`, `exercise*` under `:nonumber:`, and `\begin{solution}{Solution to Exercise~\ref{...}}\phantomsection\label{...}`, whose anchor a worded link reaches; a `:hidden:` block stays out of the LaTeX |
 | `algorithm-lines` | the `algorithmic` lines of a `.tex` source page are dropped, logging `Unhandled LaTeX conversion for node of "algorithmLine"` per line | `\begin{algorithmic}[1]` with one `\State` per line, indented by depth |
 
 Limitations:
 
-- `:nonumber:` on a proof kind or a claim is ignored in LaTeX, as in released mystmd:
-  the site prints "Claim", the PDF "Claim 2".
 - Upstream numbers lemmas from 1 on the site and on the theorem counter in the PDF
   ("Lemma 2").
 - An exercise nested inside a block that another repair renders is not written.
-- A solution's own `:label:` resolves to the enclosing section's number.
 - `algorithm-lines` meets only `.tex` source pages: no Markdown syntax makes these
   nodes. The parser has already flattened `\While{c}` into the line "**while** c
   **do**", so the PDF shows those words with line numbers, without algpseudocode's
@@ -185,6 +179,7 @@ Limitations:
 | `quotes` | an attribution (`> -- Name` after a blank `>` line) makes a `figure` with `\caption*`; econsocart ignores the star, prints a phantom "FIGURE 0." and floats the quote away from its paragraph | `\begin{quote} ... \par\hfill---Name\end{quote}` in place |
 | `smallcaps` | `{sc}` and `{kbd}` text vanishes, logging `Unhandled LaTeX conversion for node of "smallcaps"` (or `"keyboard"`) | `\textsc{...}` and `\texttt{...}` |
 | `linked-images` | an image inside a link, such as a DOI badge, ends with myst-to-tex's blank line, a paragraph break inside `\href{...}{...}`: "Paragraph ended before \href@split was complete", and latexmk carries on in force mode with the link broken | the link's LaTeX with each image written inline, `\href{...}{\includegraphics[width=0.7\linewidth]{...}}` (myst-to-tex's badge width). The site keeps the link |
+| `list-start` | an ordered list from 3 prints from 1 because econsocart reads myst-to-tex's `[resume]` as a label width; a numbered list in a table cell prints from 0 | `\begin{enumerate}\setcounter{enumi}{2}`, at the list's nesting level, and `3.~~` items in a cell. Site: a link to an item of such a list reads "Item 3" |
 | `inline-raws` | every repair above made in running text breaks the website paragraph around it | the span described in [Raw nodes](#raw-nodes) |
 
 Limitations:
@@ -195,6 +190,7 @@ Limitations:
   a `\par` in the caption argument, as before the repair. A footnote inside `{kbd}`
   text is not repaired.
 - A `:label:` on an attributed quote is dropped: there is nothing to number.
+- `list-start` misses a list inside a footnote's text, which `footnotes` writes before it.
 - `{kbd}` keeps its node for the site's key box, so the log still shows the
   `"keyboard"` line, from the `\iffalse` copy, though the PDF is right. Small caps
   inside an italic theorem body log a font substitution (`T1/put/m/scit`).
@@ -256,11 +252,15 @@ Limitations:
   printed nothing or a wrong number (`unnumbered-refs`, `missing-refs`).
 - Paragraphs after theorem-like blocks, quotes, and exercises are indented
   (`block-breaks`).
+- A `:nonumber:` proof, a heading or equation a numbering key turns off, and a list's
+  start print in the PDF as on the site (`unnumbered-proofs`, `section-numbering`,
+  `list-start`). A bare link to a solution prints "Solution to Exercise 1" in place of
+  `??label`.
 - The `.tex` holds an `\iffalse ...\fi{}` copy after each repaired inline node
   ([Raw nodes](#raw-nodes)).
-- The site changes in the five ways the tables mark "Site": claim and fact boxes, DOI
-  links that stay links, item links that read "Item 2", stacked labels that resolve,
-  and part-only keys in the reference list.
+- The site changes in the six ways the tables mark "Site": claim and fact boxes, DOI
+  links that stay links, item links that read "Item 2", item links that count from a
+  list's start, stacked labels that resolve, and part-only keys in the reference list.
 
 ## Building
 

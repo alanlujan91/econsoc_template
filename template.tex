@@ -117,6 +117,13 @@
 \@ifundefined{axiom}{\newtheorem{axiom}{Axiom}}{}
 \@ifundefined{conjecture}{\newtheorem{conjecture}{Conjecture}}{}
 \@ifundefined{observation}{\newtheorem{observation}{Observation}}{}
+%% A `:nonumber:` proof, which plugins/econsoc.mjs writes as its kind's starred environment
+\def\es@starred#1#2{\@ifundefined{#1*}{\newtheorem*{#1*}{#2}}{}}
+\es@starred{theorem}{Theorem}\es@starred{lemma}{Lemma}\es@starred{corollary}{Corollary}
+\es@starred{proposition}{Proposition}\es@starred{definition}{Definition}\es@starred{example}{Example}
+\es@starred{remark}{Remark}\es@starred{axiom}{Axiom}\es@starred{conjecture}{Conjecture}
+\es@starred{observation}{Observation}\es@starred{assumption}{Assumption}\es@starred{algorithm}{Algorithm}
+\es@starred{criterion}{Criterion}\es@starred{property}{Property}\es@starred{claim}{Claim}
 \makeatother
 %% Opt-in aliases for the axiom/observation workaround: the block prints and
 %% numbers as Assumption/Algorithm. Off by default, so a genuine axiom keeps its name.

@@ -1,6 +1,7 @@
-// The running-text repairs: footnotes, quotes, smallcaps, linked-images and inline-raws.
+// The running-text repairs: footnotes, quotes, smallcaps, linked-images, list-start and
+// inline-raws.
 
-import { collect, hasImage, rawLatex, renderTex, replaceNode, siteSafe, texOnly } from './util.mjs';
+import { collect, hasImage, isLazy, rawLatex, renderTex, replaceNode, siteSafe, texOnly } from './util.mjs';
 
 // ---------------------------------------------------------------------------------------------
 // footnotes
@@ -171,6 +172,44 @@ const linkedImagesTransform = {
 };
 
 export const linkedImages = { repair: 'linked-images', transforms: [linkedImagesTransform] };
+
+// ---------------------------------------------------------------------------------------------
+// list-start
+// An ordered list from 3 gets `\begin{enumerate}[resume]`, a label width to econsocart, so it
+// prints from 1; in a table cell myst-to-tex numbers from 0. Each becomes a lazy raw node, set
+// after `\begin` (which resets the counter) or numbered by hand, run after the block repairs.
+
+const ENUM_COUNTERS = ['enumi', 'enumii', 'enumiii', 'enumiv'];
+
+function listTex(list, depth, inTable, footnotes, file) {
+  const start = list.start ?? 1;
+  if (inTable) {
+    const items = list.children.map((item, i) => `${start + i}.~~${renderTex(item.children ?? [], footnotes, file).trim()}\\newline`);
+    return items.join('\n');
+  }
+  const items = renderTex(list.children, footnotes, file).trim();
+  return `\n\\begin{enumerate}\\setcounter{${ENUM_COUNTERS[depth]}}{${start - 1}}\n${items}\n\\end{enumerate}\n`;
+}
+
+// Innermost first, inside the lazy raw nodes of the block repairs too, whose LaTeX renders later
+function startLists(node, depth, inTable, footnotes, file) {
+  node.children?.forEach((child, i) => {
+    if (child.type === 'raw' && !isLazy(child)) return;
+    const ordered = child.type === 'list' && child.ordered;
+    startLists(child, depth + (ordered ? 1 : 0), inTable || child.type === 'table', footnotes, file);
+    if (!ordered || depth >= ENUM_COUNTERS.length || (!inTable && (child.start ?? 1) === 1)) return;
+    node.children[i] = rawLatex(child, () => listTex(child, depth, inTable, footnotes, file));
+  });
+}
+
+const listStartTransform = {
+  name: 'list-start',
+  doc: 'Numbers an ordered list from its start, in a table cell too',
+  stage: 'project',
+  plugin: (_opts, utils) => (tree, file) => startLists(tree, 0, false, utils.selectAll('footnoteDefinition', tree), file),
+};
+
+export const listStart = { repair: 'list-start', transforms: [listStartTransform] };
 
 // ---------------------------------------------------------------------------------------------
 // inline-raws

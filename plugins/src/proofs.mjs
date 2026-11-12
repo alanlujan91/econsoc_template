@@ -1,5 +1,6 @@
-// The proof and exercise repairs: proof-kinds, proof-titles, claim-fact, exercises and
-// algorithm-lines, all block repairs built on blockRepair, which renders a subtree to LaTeX.
+// The proof and exercise repairs: proof-kinds, proof-titles, claim-fact, unnumbered-proofs,
+// exercises and algorithm-lines, all block repairs built on blockRepair, which renders a
+// subtree to LaTeX.
 
 import { proofDirective } from 'myst-ext-proof';
 import { labelOf, rawLatex, renderTex, setProofWriter } from './util.mjs';
@@ -34,19 +35,29 @@ const titleOf = (node) => node.children?.find((child) => child.type === 'admonit
 const optional = (tex) => (!tex ? '' : tex.includes(']') ? `[{${tex}}]` : `[${tex}]`);
 
 // `\begin{env}<heading>[title]\label{id}`, the body, `\end{env}`, laid out as myst-to-tex lays out
-// a proof. The title is rendered from ALL its children.
+// a proof. The title is rendered from ALL its children. An unnumbered environment steps no
+// counter, so its label takes an anchor of its own, for a worded link to reach it.
 function theoremTex(env, node, footnotes, file, { heading = '', title = titleOf(node) } = {}) {
   const body = (node.children ?? []).filter((child) => child !== titleOf(node));
   const titleTex = title ? renderTex(title.children ?? [], footnotes, file).trim() : '';
-  const label = labelOf(node) ? `\\label{${labelOf(node)}}` : '';
+  const anchor = env.endsWith('*') || env === 'solution' ? '\\phantomsection' : '';
+  const label = labelOf(node) ? `${anchor}\\label{${labelOf(node)}}` : '';
   const bodyTex = renderTex(body, footnotes, file).trim();
   // A body opening with `[` would be read as the title when nothing stands between
   const guard = !titleTex && !label && bodyTex.startsWith('[') ? '{}' : '';
   return `\\begin{${env}}${heading}${optional(titleTex)}${label}${guard}${bodyTex}\n\\end{${env}}`;
 }
 
-const proofTex = (node, footnotes, file) =>
-  theoremTex(ENVIRONMENTS.get(node.kind ?? 'proof'), node, footnotes, file);
+// Set while unnumbered-proofs is on: every writer of a proof then stars a `:nonumber:` one,
+// except in the environments that are unnumbered already
+let starUnnumbered = false;
+const UNNUMBERED = new Set(['proof', 'fact']);
+const isStarred = (node) => node.enumerated === false && !UNNUMBERED.has(ENVIRONMENTS.get(node.kind ?? 'proof'));
+
+const proofTex = (node, footnotes, file) => {
+  const env = ENVIRONMENTS.get(node.kind ?? 'proof');
+  return theoremTex(starUnnumbered && isStarred(node) ? `${env}*` : env, node, footnotes, file);
+};
 
 // A proof inside a block rendered whole, whichever repair selected the block, so the bundled
 // proof handler never sees one
@@ -153,6 +164,27 @@ export const claimFact = {
   directives: [claimFactDirective('claim', true), claimFactDirective('fact', false)],
   transforms: [claimFactTransform],
 };
+
+// ---------------------------------------------------------------------------------------------
+// unnumbered-proofs
+// `:nonumber:` on a proof is lost in LaTeX: the site prints "Claim", the PDF "Claim 2". Every
+// such proof is written by proofTex as its kind's starred environment, which template.tex defines.
+
+const unnumberedProofsBlock = blockRepair({
+  name: 'unnumbered-proofs',
+  doc: 'LaTeX for a :nonumber: proof, in its starred environment',
+  select: (node) => node.type === 'proof' && ENVIRONMENTS.has(node.kind ?? 'proof') && isStarred(node),
+});
+
+const unnumberedProofsTransform = {
+  ...unnumberedProofsBlock,
+  plugin: (...args) => {
+    starUnnumbered = true;
+    return unnumberedProofsBlock.plugin(...args);
+  },
+};
+
+export const unnumberedProofs = { repair: 'unnumbered-proofs', transforms: [unnumberedProofsTransform] };
 
 // ---------------------------------------------------------------------------------------------
 // exercises

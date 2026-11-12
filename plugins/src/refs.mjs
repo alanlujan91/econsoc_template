@@ -13,6 +13,7 @@ import {
   labelOf,
   pageParts,
   plainText,
+  projectConfig,
   projectRoot,
   rawLatex,
   readFrontmatter,
@@ -224,7 +225,8 @@ function localTex(node, text, page) {
   // A node this plugin did not see at document stage falls back to comparing with the title
   const worded = node.authoredText === undefined ? text !== page.titles.get(label) : node.authoredText !== '';
   if (worded) return `\\hyperref[${label}]{${texEscape(text)}}`;
-  if (node.kind === 'heading' && (page.numbered || page.appendix.has(label))) return `${word}~${ref}`;
+  const numbered = page.numbered || page.appendix.has(label) || numberedHeadings.has(node.identifier);
+  if (node.kind === 'heading' && numbered) return `${word}~${ref}`;
   return undefined;
 }
 
@@ -304,8 +306,8 @@ function itemLabel(level, label) {
 function recordItems(node, levels, items) {
   if (node.type === 'list' && node.ordered) {
     node.children.forEach((item, i) => {
-      // LaTeX counts from 1 whatever the list's start: econsocart reads myst-to-tex's [resume] as a width
-      const path = [...levels, i + 1];
+      // From the list's start, which list-start makes LaTeX count from too
+      const path = [...levels, (node.start ?? 1) + i];
       const first = item.children?.[0];
       if (first?.type === 'paragraph' && first.identifier && path.length <= FORMATS.length) {
         items.set(first.identifier, { number: FORMATS[path.length - 1](path), level: path.length });
@@ -387,8 +389,9 @@ export const targetLabels = { repair: 'target-labels', transforms: [itemNumbers,
 // that greps the PDF for `??`. Such a reference now prints `??label` and the build warns, whatever
 // the target: a paragraph that is no list item (target-labels numbers those), a code block, an
 // unnumbered equation or figure, or a heading on a page with `numbering: {headings: false}`
-// (section-numbering). A bare link to a heading still prints its title, as MyST writes it, and a
-// worded link keeps its words. Runs before xref, which would turn the `??` back into `\ref`.
+// (section-numbering). A bare link to a heading prints its title and one to a solution "Solution
+// to Exercise 1", as the site does; a worded link keeps its words. Runs before xref, which would
+// turn the `??` back into `\ref`.
 
 // Whether LaTeX numbers a target of the page: MyST also numbers a code block ("Program 2.1"),
 // which myst-to-tex writes with neither number nor label
@@ -415,21 +418,33 @@ function texNumbers(target) {
 }
 
 function hasNoNumber(node, targets) {
-  if (node.kind === 'heading' && unnumberedHeadings.has(node.identifier)) return true;
+  if ((node.kind === 'heading' || node.kind === 'equation') && unnumberedTargets.has(node.identifier)) return true;
   const target = node.remote ? undefined : targets.get(node.identifier)?.node;
   if (target) return !texNumbers(target);
   // In a sibling document, MyST's number is all there is
   return node.enumerator == null ? node.kind !== 'heading' : node.kind === 'code';
 }
 
-// LaTeX with `??label` in the number's place, or undefined when the reference prints words
-function unnumberedTex(node) {
+// The site's "Solution to Exercise 1": the solution's own heading, linked to it (`\ref*`, since a
+// link inside a link breaks), or MyST's text for a solution in the sibling document
+function solutionTex(node, target, file) {
+  if (!target) return texEscape(plainText(node) ?? '');
+  const title = target.children?.find((child) => child.type === 'admonitionTitle')?.children ?? [];
+  return () => `\\hyperref[${texLabelOf(target)}]{${renderTex(title, [], file).trim().replaceAll('\\ref{', '\\ref*{')}}`;
+}
+
+// LaTeX with `??label` in the number's place, the title a bare link prints, or undefined when the
+// reference prints its words
+function unnumberedTex(node, target, file) {
   const label = labelOf(node);
   const text = plainText(node) ?? '';
   const authored = node.authoredText ?? (text === node.template ? '' : text.replace('??', '%s'));
   if (authored.includes('%s')) return fill(splitAt(authored, '%s'), missingTex(label));
-  if (authored || node.kind === 'heading') return undefined;
-  return missingTex(label);
+  if (authored) return undefined;
+  if (node.kind === 'solution') return solutionTex(node, target, file);
+  if (node.kind !== 'heading') return missingTex(label);
+  const title = target ? plainText(target) : unnumberedTargets.get(node.identifier);
+  return title == null ? undefined : texEscape(title).replace(/\s+/g, '~');
 }
 
 const unnumberedRefsTransform = {
@@ -440,9 +455,12 @@ const unnumberedRefsTransform = {
     const targets = pageTargets(tree);
     walk(tree, (node, parent, index) => {
       if (!isProjectRef(node, parent) || !hasNoNumber(node, targets)) return;
-      const tex = unnumberedTex(node);
+      const target = node.remote ? undefined : targets.get(node.identifier)?.node;
+      const tex = unnumberedTex(node, target, vfile);
       if (tex === undefined) return;
-      vfile.message(`econsoc: the reference to "${labelOf(node)}" prints ??, its ${node.kind} target has no number`, node);
+      if (typeof tex === 'string' && tex.includes('{??}')) {
+        vfile.message(`econsoc: the reference to "${labelOf(node)}" prints ??, its ${node.kind} target has no number`, node);
+      }
       parent.children[index] = rawLatex(node, tex);
     });
   },
@@ -725,48 +743,136 @@ export const rawRefs = { repair: 'raw-refs', transforms: [inject, substitute] };
 
 // ---------------------------------------------------------------------------------------------
 // section-numbering
-// Unnumbered sections for a page whose frontmatter sets `numbering: {headings: false}`. The site
-// honors the key, but the LaTeX export never sees it: the headings carry no `enumerated: false`,
-// so myst-to-tex writes a numbered `\section` (myst-references.md). The page's tree now opens
-// with `\setcounter{secnumdepth}{0}` and closes by restoring the value it found, so a book export
-// that holds other pages keeps their numbers. Its headings are recorded for unnumbered-refs,
-// since a `\ref` to an unnumbered section prints the number of whatever came before it.
-// Page-level `heading_N: false` is left alone, though the site honors it: which LaTeX level heading_N
-// names shifts with `numbering.title`, and secnumdepth cannot unnumber a level above a numbered one.
+// The numbering keys that turn headings or equations off (`headings`, `heading_N`, `equation`,
+// `all`) reach the site and never the LaTeX. Each unnumbered heading is set with secnumdepth
+// lowered around it, which also unnumbers a level above a numbered one, and each equation starred.
 
-// Pages whose headings are unnumbered, and the identifiers of those headings, project-wide
-const offPages = new Set();
-const unnumberedHeadings = new Set();
+// identifier -> title (null for an equation) of every target these keys unnumber, and the
+// headings they number, which xref then refers to by number, project-wide
+const unnumberedTargets = new Map();
+const numberedHeadings = new Set();
 
-// `numbering: {headings: false}`, or its object form `headings: {enabled: false}`
-function headingsOff(file) {
-  const headings = readFrontmatter(file).numbering?.headings;
-  return headings === false || headings?.enabled === false;
+const NUMBERING_ALIASES = {
+  sections: 'headings', equations: 'equation', math: 'equation', titles: 'title',
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6].flatMap((n) => [[`h${n}`, `heading_${n}`], [`heading${n}`, `heading_${n}`]])),
+};
+
+// A numbering item's `enabled`, as myst-frontmatter validates it, or undefined when it sets none
+function enabledOf(item) {
+  if (typeof item === 'boolean') return item;
+  if (typeof item === 'string' && /^(true|false)$/i.test(item)) return item.toLowerCase() === 'true';
+  return typeof item?.enabled === 'boolean' ? item.enabled : undefined;
 }
+
+const numberingOf = (value) => {
+  const object = enabledOf(value) === undefined || typeof value === 'object' ? value : { all: value };
+  return Object.fromEntries(Object.entries(object ?? {}).map(([key, item]) => [NUMBERING_ALIASES[key] ?? key, item]));
+};
+
+// What a page's keys set (myst-frontmatter fillNumbering): the page's own key (`headings` for a
+// heading level), then its `all`, then the project's. Only a key set false unnumbers the LaTeX,
+// which numbers headings MyST leaves off by default; one set true marks a heading numbered.
+function pageNumbering(file) {
+  if (!file || file.includes('#')) return null;
+  const page = numberingOf(readFrontmatter(file).numbering);
+  const project = numberingOf(projectConfig(path.dirname(file)).numbering);
+  const enabled = (key) => {
+    for (const n of [page, project]) {
+      const own = enabledOf(n[key]) ?? (key.startsWith('heading_') ? enabledOf(n.headings) : undefined);
+      if ((own ?? enabledOf(n.all)) !== undefined) return own ?? enabledOf(n.all);
+    }
+    return undefined;
+  };
+  const title = page.title ?? project.title;
+  // The site numbers a heading by its rank among the page's depths, shifted by a numbered title
+  const shift = (enabledOf(title) ? 1 : 0) + (title?.offset ?? 0);
+  const heading = (rank) => enabled(`heading_${rank + 1 + shift}`);
+  const headingOff = (rank) => heading(rank) === false;
+  const equationOff = enabled('equation') === false;
+  const off = [0, 1, 2, 3, 4, 5].some(headingOff) || equationOff;
+  return { off, headingOff, equationOff, headingOn: (rank) => heading(rank) === true };
+}
+
+// rank of each heading depth of the tree: the same for the site and an export, whose depths differ
+function depthRanks(tree) {
+  const depths = new Set();
+  walk(tree, (node) => node.type === 'heading' && depths.add(node.depth));
+  return new Map([...depths].sort((a, b) => a - b).map((depth, rank) => [depth, rank]));
+}
+
+const isOff = (node, numbering, ranks) =>
+  node.type === 'heading' ? numbering.headingOff(ranks.get(node.depth)) : node.type === 'math' && numbering.equationOff;
 
 const record = {
   name: 'econsoc-section-numbering-record',
-  doc: 'Finds the pages whose frontmatter turns heading numbers off',
+  doc: 'Records the headings and equations the page numbering keys turn off',
   stage: 'document',
   plugin: () => (tree, vfile) => {
-    if (!headingsOff(vfile.path)) return;
-    offPages.add(vfile.path);
+    const numbering = pageNumbering(vfile.path);
+    if (!numbering) return;
+    const ranks = depthRanks(tree);
     walk(tree, (node) => {
-      if (node.type === 'heading' && node.identifier) unnumberedHeadings.add(node.identifier);
+      if (!node.identifier) return;
+      if (isOff(node, numbering, ranks)) unnumberedTargets.set(node.identifier, node.type === 'heading' ? plainText(node) : null);
+      else if (node.type === 'heading' && numbering.headingOn(ranks.get(node.depth))) numberedHeadings.add(node.identifier);
     });
   },
 };
 
+const SECTIONS = [undefined, 'section', 'subsection', 'subsubsection', 'paragraph', 'subparagraph', 'subparagraph'];
+const AMSMATH = /^\s*\\begin\{(align|alignat|gather|multline|flalign|eqnarray|equation)\}/;
+
+// `\the<level>` for each numbered level below an unnumbered one, skipping it, as the site
+// joins only its numbered levels ("1.1" under an unnumbered level 2), and its restoring
+function counterTex(numbered) {
+  const set = [];
+  const restore = [];
+  numbered.forEach((on, depth) => {
+    if (!on || numbered[depth - 1] !== false) return;
+    const parent = numbered.slice(0, depth).lastIndexOf(true);
+    const name = SECTIONS[depth];
+    set.push(`\\let\\econsocthe${name}\\the${name}\\renewcommand{\\the${name}}{${parent > 0 ? `\\the${SECTIONS[parent]}.` : ''}\\arabic{${name}}}`);
+    restore.push(`\\let\\the${name}\\econsocthe${name}`);
+  });
+  return [set.join(''), restore.join('')];
+}
+
 const unnumber = {
   name: 'econsoc-section-numbering',
-  doc: 'Turns LaTeX section numbers off for a page whose frontmatter turns heading numbers off',
+  doc: 'Writes the headings and equations the page numbering keys turn off without numbers',
   stage: 'project',
   plugin: () => (tree, vfile) => {
-    if (!offPages.has(vfile.path)) return;
+    // A reference keeps the number MyST gave the target in this export, which ignores the keys
+    walk(tree, (node) => {
+      if (node.type === 'crossReference' && unnumberedTargets.has(node.identifier)) delete node.enumerator;
+    });
+    const numbering = pageNumbering(vfile.path);
+    if (!numbering?.off) return;
+    const ranks = depthRanks(tree);
+    // depth -> numbered, for the depths myst-to-tex writes as sectioning commands
+    const numbered = [];
+    for (const [depth, rank] of ranks) if (SECTIONS[depth]) numbered[depth] = !numbering.headingOff(rank);
+    const headings = [];
+    walk(tree, (node, parent, index) => {
+      if (!parent || !isOff(node, numbering, ranks)) return;
+      delete node.enumerator;
+      if (node.type === 'heading') headings.push([parent, index, node.depth]);
+      else if (AMSMATH.test(node.value ?? '')) {
+        const env = node.value.match(AMSMATH)[1];
+        const starred = node.value.replace(new RegExp(`\\\\(begin|end)\\{${env}\\}`, 'g'), `\\$1{${env}*}`);
+        parent.children[index] = rawLatex(node, `\n${starred}\n`);
+      } else node.enumerated = false;
+    });
+    // Last first, so the earlier indices in a parent stay valid
+    for (const [parent, index, depth] of headings.reverse()) {
+      parent.children.splice(index + 1, 0, texOnly('\\setcounter{secnumdepth}{\\econsocsecnumdepth}'));
+      parent.children.splice(index, 0, texOnly(`\\setcounter{secnumdepth}{${depth - 1}}`));
+    }
+    const [set, restore] = counterTex(numbered);
     tree.children = [
-      texOnly('\\edef\\econsocsecnumdepth{\\the\\value{secnumdepth}}\\setcounter{secnumdepth}{0}'),
+      texOnly(`\\edef\\econsocsecnumdepth{\\the\\value{secnumdepth}}${set}`),
       ...(tree.children ?? []),
-      texOnly('\\setcounter{secnumdepth}{\\econsocsecnumdepth}'),
+      ...(restore ? [texOnly(restore)] : []),
     ];
   },
 };

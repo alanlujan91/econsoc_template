@@ -88,6 +88,9 @@ export function rawLatex(node, tex) {
   });
 }
 
+// Whether a raw node's `tex` is rendered when read, so its children can still change its LaTeX
+export const isLazy = (node) => Boolean(Object.getOwnPropertyDescriptor(node, 'tex')?.get);
+
 // LaTeX the site never shows: a raw node with neither children nor `value`
 export const texOnly = (tex) => ({ type: 'raw', lang: 'latex', tex });
 

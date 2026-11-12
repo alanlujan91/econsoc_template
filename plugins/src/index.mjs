@@ -12,7 +12,7 @@ import path from 'node:path';
 import pkg from '../package.json' with { type: 'json' };
 import { citationForms, doiLinks, partCitations } from './citations.mjs';
 import { blockBreaks, boxedFloats, ignoredImages, macros, partHeadings, rawTables, subfigures, tableColumns } from './floats.mjs';
-import { algorithmLines, claimFact, exercises, proofKinds, proofTitles } from './proofs.mjs';
+import { algorithmLines, claimFact, exercises, proofKinds, proofTitles, unnumberedProofs } from './proofs.mjs';
 import {
   labelCase,
   missingRefs,
@@ -23,7 +23,7 @@ import {
   unnumberedRefs,
   xref,
 } from './refs.mjs';
-import { footnotes, inlineRaws, linkedImages, quotes, smallcaps } from './text.mjs';
+import { footnotes, inlineRaws, linkedImages, listStart, quotes, smallcaps } from './text.mjs';
 
 const REPAIRS = [
   // Inline. doi-links restores its links before anything renders them, linked-images first;
@@ -57,9 +57,13 @@ const REPAIRS = [
   ignoredImages,
   algorithmLines,
   exercises,
+  // unnumbered-proofs first of the proof repairs, so it writes every `:nonumber:` proof
+  unnumberedProofs,
   claimFact,
   proofKinds,
   proofTitles,
+  // list-start after every block repair, so it reaches the lists inside their raw nodes
+  listStart,
   // block-breaks follows every block repair, so it sees the raw blocks they wrote; macros reads
   // their raw LaTeX; inline-raws, last, reaches all of it (ignored-images, a document-stage
   // check, could sit anywhere)

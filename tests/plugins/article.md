@@ -149,10 +149,13 @@ $$ c = m $$ (eq-ex)
 :::
 
 :::{solution} ex-solve
+:label: sol-solve
 SOLUTIONS: guess and verify.
 :::
 
 EXREFS: [](#ex-solve) and [](#eq-ex).
+
+SOLREFS: [](#sol-solve), [the solution](#sol-solve), [Solution %s](#sol-solve).
 
 :::{prf:claim} Monotone policy
 :label: clm-mono
@@ -181,6 +184,36 @@ The following hold.
 ::::
 
 ITEMS: [Item %s](#item-second), [](#item-first), [](#item-nested), [claim %s](#item-nested), [the second claim](#item-second).
+
+:::{prf:claim} Unnumbered
+:label: clm-unnum
+:nonumber:
+NONUMBER: a list that opens at 3.
+
+3. (item-third)=
+   The third claim.
+4. The fourth claim, with a list from 2:
+
+   2. (item-fourth-b)=
+      A nested claim.
+:::
+
+:::{prf:theorem} Plain unnumbered
+:label: thm-unnum
+:nonumber:
+NONUMBER-THM: a theorem without a number.
+:::
+
+LISTREFS: [](#item-third), [](#item-fourth-b), [the claim](#clm-unnum), [](#thm-unnum).
+
+```{list-table}
+* - Short cell one, padded out to
+  - Short cell two, padded out to
+  - Short cell three, padded out
+  - Short cell four, padded out t
+  - 1. LISTCELL first
+    2. LISTCELL second
+```
 
 (para-target)=
 This paragraph is a target.
