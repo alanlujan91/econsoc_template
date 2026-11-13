@@ -24,7 +24,7 @@ This template uses MyST native features wherever possible and falls back to raw 
 
 #### Typography
 
-- **Emphasis**: `*italic*` and `**bold**` instead of `\textit{}` and `\textbf{}`
+- **Emphasis**: `*italic*` and `**bold**` instead of `\textit{}` and `\textbf{}`. Use both seldom. Italicize a term once, where the paper coins or defines it, and leave words a reader already knows upright. Bold is rarer still
 - **Math**: Standard MyST math with `$...$` and `` ```math `` blocks
 - **Inline code**: backticks, rendered as `\texttt{...}`; with the plugin, code holding a LaTeX special in running text becomes `\verb`, as in the samples ([Plugin repairs](plugin-repairs.md#running-text))
 - **Headings**: Markdown `#`, `##`, `###` for sections
